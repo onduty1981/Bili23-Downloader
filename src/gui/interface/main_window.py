@@ -147,8 +147,15 @@ class MainWindow(MSFluentWindow):
         
         AsyncTask.safe_quit()
 
-        self.theme_listener.terminate()
-        self.theme_listener.deleteLater()
+        if self.theme_listener.isRunning():
+            self.theme_listener.quit()
+            self.theme_listener.wait(1000)
+
+            if self.theme_listener.isRunning():
+                self.theme_listener.terminate()
+                self.theme_listener.wait(1000)
+                
+            self.theme_listener.deleteLater()
 
         super().closeEvent(e)
 

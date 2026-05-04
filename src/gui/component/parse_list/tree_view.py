@@ -216,7 +216,6 @@ class ParseTreeView(TreeView):
 
     def update_check_state(self):
         self._model.check_state_changed.emit(QModelIndex())
-        self.update()
 
     def batch_select(self, number_list: List[int]):
         all_items = self.get_all_items()
