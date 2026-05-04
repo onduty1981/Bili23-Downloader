@@ -78,20 +78,26 @@ class Application(QApplication):
     def init_socket(self):
         logger = logging.getLogger(__name__)
         server_name = "Bili23DownloaderInstance"
+        handshake_timeout_ms = 5000
 
-        # 尝试连接到已存在的实例，如果连接成功则退出当前实例
+        # 尝试连接到已存在的实例，如果能完成握手则退出当前实例
         self.socket = QLocalSocket()
         self.socket.connectToServer(server_name)
 
         if self.socket.waitForConnected(500):
-            # 已有实例存在，发送激活命令并退出
+            # 已有实例存在，先做一次握手，避免把卡死/未启动完成的实例误判成可用实例
             self.socket.write(QByteArray(b"activate"))
             self.socket.flush()
-            self.socket.waitForBytesWritten(500)
 
-            logger.warning("另一个实例已在运行，已退出当前实例")
+            if self.socket.waitForBytesWritten(500) and self.socket.waitForReadyRead(handshake_timeout_ms):
+                response = self.socket.readAll().data()
 
-            sys.exit(0)
+                if response in (b"ok", b"pong", b"activate"):
+                    logger.warning("另一个实例已在运行，已退出当前实例")
+                    sys.exit(0)
+
+            logger.warning("已有实例未能及时响应，继续启动当前实例")
+            self.socket.disconnectFromServer()
 
         # 清理崩溃或异常退出后残留的本地服务名，避免偶发启动失败
         QLocalServer.removeServer(server_name)
@@ -111,9 +117,18 @@ class Application(QApplication):
             data = socket.readAll().data()
 
             if data == b"activate":
+                socket.write(QByteArray(b"ok"))
+                socket.flush()
+                socket.waitForBytesWritten(500)
+
                 # 激活已有窗口
                 if self.window:
                     self.window._activate_window()
+
+            elif data == b"ping":
+                socket.write(QByteArray(b"pong"))
+                socket.flush()
+                socket.waitForBytesWritten(500)
 
     def setup_app(self):
         self.setAttribute(Qt.ApplicationAttribute.AA_DontCreateNativeWidgetSiblings)

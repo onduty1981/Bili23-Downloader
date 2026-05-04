@@ -1,4 +1,4 @@
-## 2.00.2 (2026-05-03)
+## 2.00.2 (2026-05-04)
 ### 新增
 - 重新支持分段 flv/mp4 格式视频下载
 - 发行版构建支持 Linux ARM64 架构
@@ -16,10 +16,12 @@
 - 修复无法正确嵌入封面图片的问题
 - 修复部分情况下载进度停留在 99% 的问题
 
-#### 注意
+### 注意
 安装前请先移除旧版本，请勿覆盖安装。
 另外，新版本调整了 Linux/ macOS 发行版的系统需求，请确保系统满足以下要求：
-- Linux amd64: Ubuntu 20.04 / Debian 11 / Fedora 32 / RHEL 9 及以上版本 (glibc 2.31+)
-- Linux arm64: Ubuntu 24.04 / Debian 13 / Fedora 40 / RHEL 10 及以上版本 (glibc 2.39+)
-- macOS x86_64: macOS 12+
-- macOS aarch64: macOS 12+
+#### Linux
+- **AMD64架构**: Ubuntu 20.04 / Debian 11 / Fedora 32 / RHEL 9 及以上版本 (glibc 2.31+)
+- **ARM64架构**: Ubuntu 24.04 / Debian 13 / Fedora 40 / RHEL 10 及以上版本 (glibc 2.39+)
+#### macOS
+- **x86_64架构**: macOS 12+
+- **aarch64架构**: macOS 12+

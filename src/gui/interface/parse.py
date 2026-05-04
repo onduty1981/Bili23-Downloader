@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout, QApplication
 from PySide6.QtGui import QKeyEvent
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 
 from qfluentwidgets import LineEdit, BodyLabel, FluentIcon, RoundMenu, Action
 
@@ -267,7 +267,7 @@ class ParseInterface(ParseBase):
 
         signal_bus.toast.show.emit(ToastNotificationCategory.SUCCESS, "", self.tr("Added to download queue"))
 
-        self.parse_list.update_check_state()
+        QTimer.singleShot(0, self.parse_list.update_check_state)
 
     def on_download_options(self):
         # 只有在获取媒体信息成功时才显示下载选项对话框
