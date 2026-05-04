@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QSystemTrayIcon, QWidget, QApplication
+from PySide6.QtWidgets import QSystemTrayIcon, QWidget
 
 from qfluentwidgets import SystemTrayMenu, Action
 
@@ -20,20 +20,17 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.menu.addAction(Action(self.tr("Exit"), triggered = self.on_exit))
 
         self.setContextMenu(self.menu)
+        
+        # 点击托盘图标时显示主窗口
+        self.activated.connect(self.on_activated)
 
-    def on_show_main_window(self):
-        parent: QWidget = self.parent()
+    def on_activated(self, reason: QSystemTrayIcon.ActivationReason):
+        if reason == QSystemTrayIcon.ActivationReason.Trigger:
+            self.on_show_main_window(reason)
 
-        if parent.isMinimized():
-            parent.showNormal()
-
-        if parent.isHidden():
-            parent.show()
-
-        else:
-            parent.show()
-            parent.raise_()
-            parent.activateWindow()
+    def on_show_main_window(self, reason: QSystemTrayIcon.ActivationReason = None):
+            parent: QWidget = self.parent()
+            parent._activate_window()
 
     def on_exit(self):
         self.on_show_main_window()

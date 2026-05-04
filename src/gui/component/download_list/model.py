@@ -1,13 +1,11 @@
 from PySide6.QtCore import QModelIndex, Qt, QSize
 from PySide6.QtWidgets import QAbstractItemView
 
-from gui.component.view_model.model_base import CoverQueryModelBase
-
-from util.download.downloader.manager import downloader_manager
-from util.download.task.manager import task_manager
-from util.download.task.info import TaskInfo
+from util.download import TaskInfo, task_manager, downloader_manager
 from util.common.enum import DownloadStatus
 from util.common import signal_bus, config
+
+from ..view_model import CoverQueryModelBase
 
 from typing import List
 
@@ -17,6 +15,17 @@ class DownloadListModel(CoverQueryModelBase):
 
         self._cover_size = QSize(144, 80)
         self._task_list: List[TaskInfo] = task_list
+
+        self._sorting = False
+        self._sort_by_key = None
+        self._ascending = True
+
+    def _get_task_id(self, task_info: TaskInfo):
+        return task_info.Basic.task_id
+
+    def _applyCurrentSort(self):
+        if self._sorting and self._sort_by_key:
+            self.sortBy(self._sort_by_key, self._ascending)
 
     def rowCount(self, parent = QModelIndex()):
         return len(self._task_list)
@@ -29,17 +38,19 @@ class DownloadListModel(CoverQueryModelBase):
         
         match role:
             case Qt.ItemDataRole.DisplayRole:
-                return task_info["task_id"]
+                return task_info.Basic.task_id
             
             case Qt.ItemDataRole.UserRole:
                 return task_info
     
     def getRow(self, task_info: TaskInfo):
-        try:
-            return self._task_list.index(task_info)
-        
-        except ValueError:
-            return -1
+        task_id = self._get_task_id(task_info)
+
+        for row, item in enumerate(self._task_list):
+            if item.Basic.task_id == task_id:
+                return row
+
+        return -1
 
     def appendRow(self, task_info: TaskInfo):
         row = self.rowCount()
@@ -50,7 +61,12 @@ class DownloadListModel(CoverQueryModelBase):
 
         self.endInsertRows()
 
+        self._applyCurrentSort()
+
     def appendRows(self, task_info_list: List[TaskInfo]):
+        if not task_info_list:
+            return
+
         row = self.rowCount()
 
         self.beginInsertRows(QModelIndex(), row, row + len(task_info_list) - 1)
@@ -59,8 +75,13 @@ class DownloadListModel(CoverQueryModelBase):
 
         self.endInsertRows()
 
+        self._applyCurrentSort()
+
     def updateRows(self, start_row: int, end_row: int):
         for row in range(start_row, end_row + 1):
+            if not self.isRowInVisibleArea(row):
+                continue
+
             index = self.index(row)
 
             self.dataChanged.emit(index, index)
@@ -147,14 +168,10 @@ class DownloadListModel(CoverQueryModelBase):
                 self.onUpdateData(task)
 
     def batch_cancel(self):
-        self.beginResetModel()
-
         for task in list(self._task_list):
             if task.Download.status not in [DownloadStatus.MERGING, DownloadStatus.CONVERTING]:
                 # 只有非合并中的任务才允许取消
                 self.cancelDownload(task)
-
-        self.endResetModel()
 
     def manageConcurrentDownloads(self):
         # 自动调度同时下载的任务数量
@@ -191,7 +208,11 @@ class DownloadListModel(CoverQueryModelBase):
     def onUpdateData(self, task_info: TaskInfo):
         row = self.getRow(task_info)
 
-        if row != -1 and self.isRowInVisibleArea(row):
+        if row == -1:
+            return
+
+        if self.isRowInVisibleArea(row):
+
             model_index = self.index(row)
 
             self.dataChanged.emit(model_index, model_index)
@@ -235,3 +256,43 @@ class DownloadListModel(CoverQueryModelBase):
         self.onUpdateData(task_info)
 
         self.manageConcurrentDownloads()
+
+    def sortBy(self, key: str, ascending: bool = True):
+        # 排序列表
+        if not self._sorting:
+            return
+        
+        self._sort_by_key = key
+        self._ascending = ascending
+
+        reverse = not ascending
+
+        self.layoutAboutToBeChanged.emit()
+
+        match key:
+            case "created_time":
+                self._task_list.sort(key = lambda x: x.Basic.created_time, reverse = reverse)
+
+            case "completed_time":
+                self._task_list.sort(key = lambda x: x.Basic.completed_time, reverse = reverse)
+
+            case "show_title":
+                self._task_list.sort(key = lambda x: x.Basic.show_title, reverse = reverse)
+
+            case "file_size":
+                self._task_list.sort(key = lambda x: x.Download.total_size, reverse = reverse)
+
+            case "progress":
+                self._task_list.sort(key = lambda x: x.Download.progress, reverse = reverse)
+
+        self.layoutChanged.emit()
+
+        self.updateRows(0, self.rowCount() - 1)
+
+    def enableSorting(self, default_key: str):
+        # 启用排序功能
+        self._sorting = True
+        self._sort_by_key = default_key
+
+        self._applyCurrentSort()
+        

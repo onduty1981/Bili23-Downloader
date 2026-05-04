@@ -1,50 +1,25 @@
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout, QApplication
 from PySide6.QtGui import QKeyEvent
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 
 from qfluentwidgets import LineEdit, BodyLabel, FluentIcon, RoundMenu, Action
 
 from gui.component.widget import TransparentToolButton, SegmentedWidget, IndeterminateProgressPushButton, SeasonComboBox
 from gui.dialog.misc import SearchDialog, BatchSelectDialog, ParseHistoryDialog
 from gui.dialog.download_options.dialog import DownloadOptionsDialog
-from gui.component.parse_list.tree_view import ParseTreeView
+from gui.component.parse_list import ParseTreeView
 
 from util.common import signal_bus, config, Translator, ExtendedFluentIcon
 from util.common.enum import ToastNotificationCategory, NumberingType
 from util.parse.preview import Previewer, PreviewerInfo
-from util.misc.history import history_manager
+from util.thread import AsyncTask, GlobalThreadPoolTask
 from util.common.data import url_patterns
 from util.parse.worker import ParseWorker
-from util.thread import AsyncTask
+from util.download import task_manager
+from util.misc import history_manager
 
 from functools import wraps
 import re
-
-def check_preview_info(func):
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-        if PreviewerInfo.error_occurred:
-            # 只有存在 error_message 时才显示通知
-
-            if PreviewerInfo.error_message:
-                signal_bus.toast.show.emit(ToastNotificationCategory.ERROR, Translator.ERROR_MESSAGES("MEDIA_INFO_FAILED"), PreviewerInfo.error_message)
-        else:
-            return func(self, *args, **kwargs)
-        
-    return wrapper
-
-def show_download_options_dialog(func):
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-        if config.get(config.show_download_options_dialog):
-            dialog = DownloadOptionsDialog(self.main_window)
-            
-            if not dialog.exec():
-                return
-
-        return func(self, *args, **kwargs)
-    
-    return wrapper
 
 class ParseBase(QFrame):
     def __init__(self, parent = None):
@@ -103,11 +78,28 @@ class ParseBase(QFrame):
     def check_matches(self, items):
         self.parse_list.check_items(items)
 
+    def update_previewer_info(self):
+        if first_episode_info := self.parse_list.get_first_item_info():
+            # 获取解析结果中第一个视频的信息，作为预览的媒体信息
+            signal_bus.parse.preview_init.emit(first_episode_info)
+
+    def check_preview_info(self):
+        if PreviewerInfo.error_occurred:
+            # 只有存在 error_message 时才显示通知
+
+            if PreviewerInfo.error_message:
+                signal_bus.toast.show.emit(ToastNotificationCategory.ERROR, Translator.ERROR_MESSAGES("MEDIA_INFO_FAILED"), PreviewerInfo.error_message)
+
+            return False
+        else:
+            return True
+
 class ParseInterface(ParseBase):
     def __init__(self, parent = None):
         super().__init__(parent = parent)
 
         self.main_window = parent
+        self._download_options_dialog = None
 
         self.setObjectName("ParseInterface")
 
@@ -189,6 +181,8 @@ class ParseInterface(ParseBase):
         self.download_btn.clicked.connect(self.on_download)
 
         signal_bus.parse.update_parse_list.connect(self.on_update_parse_list)
+        signal_bus.parse.update_preview_info.connect(self.update_previewer_info)
+        signal_bus.parse.search_keyword.connect(self.parse_list.search_keywords)
 
         self.segmented_widget.search_widget.scrollToItem.connect(self.scroll_to_item)
         self.segmented_widget.search_widget.checkMatches.connect(self.check_matches)
@@ -219,16 +213,14 @@ class ParseInterface(ParseBase):
         worker = ParseWorker(self.url_box.text(), page)
         worker.success.connect(self.on_parse_success)
         worker.error.connect(self.on_parse_error)
-        
+
         AsyncTask.run(worker)
 
     def on_parse_success(self, category_name: str, extra_data: dict):
         self.parse_list._model._set_category_name(category_name)
         self.category_name = Translator.EPISODE_TYPE(category_name)
 
-        if first_episode_info := self.parse_list.get_first_item_info():
-            # 获取解析结果中第一个视频的信息，作为预览的媒体信息
-            signal_bus.parse.preview_init.emit(first_episode_info)
+        self.update_previewer_info()
 
         self.on_item_check_state_changed(None)
 
@@ -236,6 +228,8 @@ class ParseInterface(ParseBase):
         self.check_extra_data(extra_data)
 
         self.check_need_check_all()
+
+        self.parse_list.search_keywords("")
 
         self.parse_btn.setIndeterminateState(False)
 
@@ -254,32 +248,39 @@ class ParseInterface(ParseBase):
         if config.get(config.parse_history):
             history_manager.add_history(title, self.url_box.text(), category_name)
 
-    @check_preview_info
-    @show_download_options_dialog
     def on_download(self):
         # 只有在获取媒体信息成功时才允许下载
         #self.download_btn.setIndeterminateState(True)
 
+        if not self.check_preview_info():
+            return
+
+        if config.get(config.show_download_options_dialog):
+            dialog = DownloadOptionsDialog(self.main_window)
+            
+            if not dialog.exec():
+                return
+
         checked_episodes_list = self.parse_list.get_checked_items(to_dict = True, mark_as_downloaded = True)
 
-        signal_bus.download.create_task.emit(checked_episodes_list)
+        GlobalThreadPoolTask.run_func(task_manager.create, checked_episodes_list)
 
         signal_bus.toast.show.emit(ToastNotificationCategory.SUCCESS, "", self.tr("Added to download queue"))
 
-        self.parse_list.update()
+        QTimer.singleShot(0, self.parse_list.update_check_state)
 
-    @check_preview_info
     def on_download_options(self):
         # 只有在获取媒体信息成功时才显示下载选项对话框
+        if not self.check_preview_info():
+            return
+
         dialog = DownloadOptionsDialog(self.main_window)
         dialog.exec()
 
     def on_show_more(self):
         menu = RoundMenu(parent = self)
 
-        # TODO: 筛选功能
         menu.addAction(self._create_action(FluentIcon.SEARCH, self.tr("Search"), self.on_search))
-        # menu.addAction(filter_action)
         menu.addAction(self._create_action(ExtendedFluentIcon.TODO, self.tr("Batch select"), self.on_batch_select))
         menu.addAction(self._create_action(FluentIcon.HISTORY, self.tr("Parsing history"), self.on_history))
 
@@ -321,7 +322,7 @@ class ParseInterface(ParseBase):
         self.download_btn.setEnabled(checked_count > 0)
 
     def on_copy_url(self):
-        if self.clipboard.mimeData().hasText() and config.get(config.listen_clipboard):
+        if self.clipboard.mimeData().hasText() and config.get(config.monitor_clipboard):
             url = self.clipboard.text()
 
             for parser_type, pattern in url_patterns:
@@ -337,6 +338,7 @@ class ParseInterface(ParseBase):
 
     def keyPressEvent(self, event: QKeyEvent):
         if event.modifiers() == Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_A:
+            # Ctrl + A 快捷键全选
             self.parse_list.check_all_items()
 
             event.accept()
@@ -344,7 +346,16 @@ class ParseInterface(ParseBase):
             return
 
         elif event.modifiers() == Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_D:
+            # Ctrl + D 快捷键全不选
             self.parse_list.check_all_items(uncheck = True)
+
+            event.accept()
+
+            return
+        
+        elif event.modifiers() == Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_F:
+            # Ctrl + F 快捷键打开搜索对话框
+            self.on_search()
 
             event.accept()
 
@@ -372,3 +383,4 @@ class ParseInterface(ParseBase):
     def on_season_changed(self, url: str):
         # 切换季时重新解析
         self.reparse(url)
+

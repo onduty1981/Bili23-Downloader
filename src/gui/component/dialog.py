@@ -1,12 +1,13 @@
-from PySide6.QtWidgets import QStackedWidget, QVBoxLayout, QHBoxLayout, QWidget
+from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QWidget
 from PySide6.QtCore import Qt, QEventLoop
 
 from qfluentwidgets import (
-    MessageBoxBase, InfoBar, InfoBarPosition, FluentWidgetTitleBar, FluentWidget, PrimaryPushButton, PushButton
+    MessageBoxBase, FluentWidgetTitleBar, FluentWidget, PrimaryPushButton, PushButton,
+    PopUpAniStackedWidget, InfoBar, InfoBarPosition
 )
 from qframelesswindow.titlebar.title_bar_buttons import CloseButton
 
-from gui.component.widget import PivotItem, Pivot
+from .widget import PivotItem, Pivot
 
 from util.common.enum import ToastNotificationCategory
 from util.common import StyleSheet, config
@@ -62,14 +63,6 @@ class DialogBase(Base, MessageBoxBase):
 
         self.accepted.connect(self.on_dialog_close)
         self.rejected.connect(self.on_dialog_close)
-
-    def enable_close_btn(self):
-        self.closeBtn = CloseButton(self)
-        self.closeBtn.clicked.connect(self.reject)
-
-        StyleSheet.BUTTON.apply(self.closeBtn)
-
-        self.vBoxLayout.insertWidget(0, self.closeBtn, alignment = Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
 
     def on_dialog_close(self):
         """
@@ -171,7 +164,7 @@ class TopNavigationDialogBase(FluentDialogBase):
         self.pivot = Pivot(self)
         #self.pivot.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
 
-        self.stackedWidget = QStackedWidget(self)
+        self.stackedWidget = PopUpAniStackedWidget(self)
         #self.stackedWidget.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         self.stackedWidget.setContentsMargins(0, 0, 0, 0)
 

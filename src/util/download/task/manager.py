@@ -1,14 +1,14 @@
 from util.common.data import reversed_video_quality_map, reversed_audio_quality_map, video_codec_str_map
-from util.common import signal_bus, config, safe_remove, get_timestamp, Translator
-from util.download.task.reparse_worker import ReparseWorker
+from util.common import signal_bus, config, safe_remove, get_timestamp_ms, Translator
 from util.parse.episode.tree import EpisodeData, Attribute
 from util.common.enum import DownloadStatus, DownloadType
-from util.download.cover.manager import cover_manager
-from util.download.task.db import TaskDatabase
-from util.download.task.info import TaskInfo
 from util.thread import GlobalThreadPoolTask
 from util.format import FileNameFormatter
 
+from ..cover.manager import cover_manager
+from .reparse_worker import ReparseWorker
+from .db import TaskDatabase
+from .info import TaskInfo
 
 from pathlib import Path
 from typing import List
@@ -29,7 +29,7 @@ class TaskManager:
         task_info.Basic.task_id = str(uuid4())
         task_info.Basic.cover_id = cover_manager.arrange_cover_id(episode_info.get("cover", ""))
         task_info.Basic.show_title = episode_info.get("title", "")
-        task_info.Basic.created_time = get_timestamp()
+        task_info.Basic.created_time = get_timestamp_ms()
         
         # DownloadInfo
         task_info.Download.status = DownloadStatus.QUEUED
@@ -155,6 +155,7 @@ class TaskManager:
             self.db_manager.add_tasks(task_info_list)
 
             signal_bus.download.add_to_downloading_list.emit(task_info_list)
+            signal_bus.download.auto_manage_concurrent_downloads.emit()
 
     def query(self, completed: bool = False) -> List[TaskInfo]:
         result = self.db_manager.query_tasks(completed)
@@ -207,6 +208,7 @@ class TaskManager:
         self.db_manager.add_tasks([task_info])
 
         signal_bus.download.add_to_downloading_list.emit([task_info])
+        signal_bus.download.auto_manage_concurrent_downloads.emit()
 
     def _removeTemporaryFiles(self, task_info: TaskInfo):
         # 删除下载的临时文件

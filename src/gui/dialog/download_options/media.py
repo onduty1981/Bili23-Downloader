@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import QVBoxLayout
 from PySide6.QtCore import QTimer
 
-from gui.component.download_options.card import MediaInfoCard, MediaOptionsCard, MessageBox
+from gui.dialog.download_options.card import MediaInfoCard, MediaOptionsCard, MessageBox
 from gui.component.widget import ScrollArea
 
 from util.parse.preview import PreviewerInfo
@@ -30,7 +30,7 @@ class MediaSettingsPage(ScrollArea):
 
         self.setScrollLayout(main_layout)
     
-    def connect_signal(self):
+    def connect_signals(self):
         self.media_info_card.video_quality_choice.currentIndexChanged.connect(self.on_change_video_info_choice)
         self.media_info_card.audio_quality_choice.currentIndexChanged.connect(self.on_change_audio_info_choice)
         self.media_info_card.video_codec_choice.currentIndexChanged.connect(self.on_change_video_info_choice)
@@ -41,7 +41,7 @@ class MediaSettingsPage(ScrollArea):
         self.on_change_video_info_choice()
         self.on_change_audio_info_choice()
 
-        self.connect_signal()
+        self.connect_signals()
 
     def on_change_video_info_choice(self):
         self.media_info_card.pre_query_video_info()
@@ -97,3 +97,9 @@ class MediaSettingsPage(ScrollArea):
 
             
         return True
+    
+    def has_media_to_download(self):
+        return (
+            self.media_options_card.download_video_stream or
+            self.media_options_card.download_audio_stream
+        )

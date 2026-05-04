@@ -217,11 +217,11 @@ class Translator:
         return {
             "FFMPEG_FAILED": translate("ERROR_MESSAGES", "An error occurred while running FFmpeg"),
             "FFMPEG_FAILED_WITH_CODE": translate("ERROR_MESSAGES", "FFmpeg failed with exit code {code}"),
-            "FILE_NOT_FOUND": translate("ERROR_MESSAGES", "The specified file or folder does not exist"),
+            "FILE_NOT_FOUND": translate("ERROR_MESSAGES", "The specified file or folder does not exist, you may need to download it again."),
             "FILE_NOT_FOUND_DETAIL": translate("ERROR_MESSAGES", "The file may have been moved or deleted. Please download it again."),
-            "INSUFFICIENT_SPACE": translate("ERROR_MESSAGES", "Insufficient disk space"),
+            "INSUFFICIENT_SPACE": translate("ERROR_MESSAGES", "Insufficient disk space, please free up enough space and try again."),
             "PERMISSION_DENIED": translate("ERROR_MESSAGES", "Permission denied: cannot write to file"),
-            "CORRUPTED_FILE": translate("ERROR_MESSAGES", "Downloaded file is corrupted"),
+            "CORRUPTED_FILE": translate("ERROR_MESSAGES", "Downloaded file is corrupted, please try downloading again."),
             "COULD_NOT_OPEN": translate("ERROR_MESSAGES", "Failed to open file"),
             "FILE_IS_BUSY": translate("ERROR_MESSAGES", "File is in use by another process"),
             "CANNOT_CREATE": translate("ERROR_MESSAGES", "Could not create output file"),
@@ -261,7 +261,7 @@ class Translator:
             "DOWNLOADING_DANMAKU": translate("TIP_MESSAGES", "Downloading Danmaku..."),
             "DOWNLOADING_SUBTITLES": translate("TIP_MESSAGES", "Downloading Subtitles..."),
             "DOWNLOADING_COVER": translate("TIP_MESSAGES", "Downloading Cover..."),
-            "SCRAPING_METADATA": translate("TIP_MESSAGES", "Scraping Metadata..."),
+            "SCRAPING_METADATA": translate("TIP_MESSAGES", "Scraping Metadata...")
         }
 
     @staticmethod

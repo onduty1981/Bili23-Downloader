@@ -6,8 +6,8 @@ from qfluentwidgets import (
     ConfigItem, EnumSerializer, Theme, qconfig
 )
 
-from util.common.serializer import LanguageSerializer, ScalingSerializer
-from util.common.enum import (
+from .serializer import LanguageSerializer, ScalingSerializer
+from .enum import (
     Language, WhenClose, DanmakuType, SubtitleType, CoverType, MetadataType, ProxyType, FFmpegSource, NumberingType,
     Scaling, FileConflictResolution, VideoContainer
 )
@@ -209,20 +209,21 @@ class DefaultValue:
 class APPConfig(QConfig):
     # APP
     app_name = "Bili23 Downloader"
-    app_version = "2.00.1"
-    app_comparable_version = "2.00.1"
+    app_version = "2.00.2"
+    app_comparable_version = "2.00.2"
 
     # Interface
     language = OptionsConfigItem("Interface", "language", Language.AUTO, OptionsValidator(Language), LanguageSerializer(), restart = True)
-    scaling = OptionsConfigItem("Interface", "scaling", Scaling.AUTO, OptionsValidator(Scaling), ScalingSerializer(), restart = True)
+    display_scaling = OptionsConfigItem("Interface", "display_scaling", Scaling.AUTO, OptionsValidator(Scaling), ScalingSerializer(), restart = True)
     mica_effect = ConfigItem("Interface", "mica_effect", False, BoolValidator())
 
     # Behavior
     auto_check_all = ConfigItem("Behavior", "auto_check_all", False, BoolValidator())
     parse_list_column = ConfigItem("Behavior", "parse_list_column", DefaultValue.parse_list_column)
 
+    silent_start = ConfigItem("Behavior", "silent_start", False, BoolValidator())
     stay_on_top = ConfigItem("Behavior", "stay_on_top", False, BoolValidator())
-    listen_clipboard = ConfigItem("Behavior", "listen_clipboard", False, BoolValidator())
+    monitor_clipboard = ConfigItem("Behavior", "monitor_clipboard", False, BoolValidator())
     parse_history = ConfigItem("Behavior", "parse_history", True, BoolValidator())
     show_download_options_dialog = ConfigItem("Behavior", "show_download_options_dialog", True, BoolValidator())
     when_close_window = OptionsConfigItem("Behavior", "when_close_window", WhenClose.ALWAYS_ASK, OptionsValidator(WhenClose), EnumSerializer(WhenClose))
@@ -280,7 +281,7 @@ class APPConfig(QConfig):
     proxy_uname = ConfigItem("Advanced", "proxy_uname", "")
     proxy_password = ConfigItem("Advanced", "proxy_password", "")
 
-    user_agent = ConfigItem("Advanced", "user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36 Edg/145.0.0.0")
+    user_agent = ConfigItem("Advanced", "user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0")
 
     # Update
     include_prerelease = ConfigItem("Update", "include_prerelease", False, BoolValidator())
@@ -299,7 +300,7 @@ class APPConfig(QConfig):
     b_nut = ConfigItem("Cookie", "b_nut", "")
     bili_ticket = ConfigItem("Cookie", "bili_ticket", "")
     bili_ticket_expires = ConfigItem("Cookie", "bili_ticket_expires", 0)
-    buvid_fp = ConfigItem("Cookie", "buvid_fp", "518b3ba95381f7d9d6edac50db3edee8")
+    buvid_fp = ConfigItem("Cookie", "buvid_fp", "")
     buvid3 = ConfigItem("Cookie", "buvid3", "")
     buvid4 = ConfigItem("Cookie", "buvid4", "")
     buvid_expires = ConfigItem("Cookie", "buvid_expires", 0)

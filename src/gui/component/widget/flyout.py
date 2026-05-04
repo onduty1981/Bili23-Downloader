@@ -1,15 +1,16 @@
 from PySide6.QtWidgets import QVBoxLayout, QWidget, QHBoxLayout, QListWidgetItem
 from PySide6.QtGui import QColor, QIcon, QPainter, QPen
-from PySide6.QtCore import Signal, Qt, QSize, QTimer
+from PySide6.QtCore import Signal, Qt, QSize
 
 from qfluentwidgets import (
     FlyoutViewBase, FluentIcon, isDarkTheme, ListWidget, ComboBox, PopUpAniStackedWidget
 )
 from qfluentwidgets.components.navigation import NavigationWidget
 
-from gui.component.widget.button import TransparentToolButton
-from gui.component.entry_list.list_view import EntryListView
-from gui.component.widget.pager import Pager
+from gui.component.entry_list import EntryListView
+
+from .button import TransparentToolButton
+from .pager import Pager
 
 from util.common import ExtendedFluentIcon, signal_bus, config
 from util.parse.parser import FavoriteParser
@@ -19,9 +20,9 @@ import webbrowser
 
 class Separator(NavigationWidget):
     def __init__(self, parent = None):
-        super().__init__(False, parent=parent)
+        super().__init__(False, parent = parent)
 
-        self.setFixedSize(5, 450)
+        self.setFixedWidth(5)
 
         self.update()
 
@@ -30,7 +31,7 @@ class Separator(NavigationWidget):
 
         c = 255 if isDarkTheme() else 0
 
-        pen = QPen(QColor(c, c, c, 15))
+        pen = QPen(QColor(c, c, c, 25))
         pen.setCosmetic(True)
 
         painter.setPen(pen)
@@ -240,9 +241,9 @@ class FollowWidget(QWidget):
         viewLayout.addWidget(self.entry_list)
         viewLayout.addWidget(self.pager)
 
-        self.connect_signal()
+        self.connect_signals()
 
-    def connect_signal(self):
+    def connect_signals(self):
         self.entry_list._model.itemClicked.connect(self.on_list_item_clicked)
         self.entry_list.parse.connect(self.on_list_item_clicked)
         self.type_choice.currentIndexChanged.connect(self.update_list)
@@ -301,7 +302,7 @@ class FavoriteFlyoutWidget(FlyoutViewBase):
         self.category_widget = CategoryWidget(self)
         self.category_widget.setFixedWidth(180)
 
-        separator = Separator(self)
+        self.separator = Separator(self)
 
         self.favorite_widget = EntryWidget(self)
         self.subscribtion_widget = EntryWidget(self)
@@ -316,7 +317,7 @@ class FavoriteFlyoutWidget(FlyoutViewBase):
         self.viewLayout.setContentsMargins(10, 10, 10, 10)
         self.viewLayout.setSpacing(0)
         self.viewLayout.addWidget(self.category_widget)
-        self.viewLayout.addWidget(separator)
+        self.viewLayout.addWidget(self.separator)
         self.viewLayout.addWidget(self.stack_widget)
         
         self.category_widget.refresh_btn.clicked.connect(self.init_flyout)
@@ -337,6 +338,8 @@ class FavoriteFlyoutWidget(FlyoutViewBase):
             height = 655
         else:
             height = 475
+
+        self.separator.setFixedHeight(height - 25)
 
         self.setFixedSize(width, height)
 

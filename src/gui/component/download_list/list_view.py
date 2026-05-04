@@ -1,15 +1,17 @@
 from PySide6.QtGui import QPainter, QColor, QFontMetrics
-from PySide6.QtCore import QModelIndex, Qt
+from PySide6.QtCore import QModelIndex, Qt, QTimer
 
 from qfluentwidgets import ListView, RoundMenu, Action, FluentIcon, isDarkTheme, setFont
 
-from gui.component.download_list.item_delegate import DownloadItemDelegate
-from gui.component.download_list.model import DownloadListModel
+from .item_delegate import DownloadItemDelegate
+from .model import DownloadListModel
+from .proxy_model import DownloadListProxyModel
 
 from util.common.enum import DownloadStatus, ToastNotificationCategory
 from util.download.downloader.manager import downloader_manager
 from util.common import signal_bus, ExtendedFluentIcon, config
-from util.download.task.info import TaskInfo
+
+from util.download import TaskInfo
 
 from typing import List
 
@@ -21,10 +23,15 @@ class DownloadListView(ListView):
         self._auto_manage_concurrent = False
         self._auto_update_visible_area = False
         self._auto_update_count_badge = False
+        self._auto_manage_pending = False
+        self._in_batch_cancel = False
 
         self._in_adding_queried_tasks = False
 
-        self._model = DownloadListModel([], self)
+        self._source_model = DownloadListModel([], self)
+        self._model = DownloadListProxyModel(self)
+        self._model.setSourceModel(self._source_model)
+
         self._delegate = DownloadItemDelegate(self)
         self._delegate.contextMenuRequested.connect(self.showContextMenu)
 
@@ -61,7 +68,7 @@ class DownloadListView(ListView):
         menu.exec(pos)
 
     def isEmpty(self):
-        return len(self._model._task_list) == 0
+        return self._model.rowCount() == 0
     
     def setEmptyTextTip(self, text: str):
         self._emptyTextTip = text
@@ -71,6 +78,9 @@ class DownloadListView(ListView):
 
     def setAutoUpdateCountBadge(self, auto_update: bool):
         self._auto_update_count_badge = auto_update
+
+    def enableSorting(self, default_key: str = None):
+        self._model.enableSorting(default_key)
 
     def connectUpdateDataSignal(self):
         self._model.connectUpdateDataSignal()
@@ -103,26 +113,21 @@ class DownloadListView(ListView):
     def addTask(self, task_info_list: List[TaskInfo]):
         self._model.appendRows(task_info_list)
 
-        if not self._in_adding_queried_tasks:
-            self._model.manageConcurrentDownloads()
-
         if self._auto_update_count_badge:
             # 更新下载数量徽章
-            signal_bus.download.update_downloading_count.emit(self._model.rowCount())
+            signal_bus.download.update_downloading_count.emit(self._source_model.rowCount())
     
     def removeTask(self, task_info: TaskInfo):
-        row = self._model.getRow(task_info)
-        
-        self._model.removeRow(row)
+        self._model.removeTask(task_info)
 
-        if self._auto_manage_concurrent:
+        if self._auto_manage_concurrent and not self._in_batch_cancel:
             downloader_manager.remove(task_info.Basic.task_id)
 
             self._model.manageConcurrentDownloads()
 
         if self._auto_update_count_badge:
             # 更新下载数量徽章
-            count = self._model.rowCount()
+            count = self._source_model.rowCount()
 
             signal_bus.download.update_downloading_count.emit(count)
 
@@ -135,6 +140,29 @@ class DownloadListView(ListView):
 
     def _endAddQueriedTasks(self):
         self._in_adding_queried_tasks = False
+
+    def batch_cancel(self):
+        self._in_batch_cancel = True
+
+        try:
+            self._model.batch_cancel()
+        finally:
+            self._in_batch_cancel = False
+
+        if self._auto_manage_concurrent:
+            self._schedule_auto_manage_concurrent_downloads()
+
+    def _schedule_auto_manage_concurrent_downloads(self):
+        if self._auto_manage_pending:
+            return
+
+        self._auto_manage_pending = True
+
+        def run_auto_manage():
+            self._auto_manage_pending = False
+            self._model.manageConcurrentDownloads()
+
+        QTimer.singleShot(0, run_auto_manage)
 
     def onTogglePauseResumeTask(self, index: QModelIndex, task_info: TaskInfo):
         # 与 model 交互以暂停下载任务
@@ -168,3 +196,6 @@ class DownloadListView(ListView):
         
         return action
     
+    @property
+    def sort_by_key(self):
+        return self._model._sort_by_key

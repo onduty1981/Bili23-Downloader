@@ -8,6 +8,7 @@ class ExtendedFluentIcon(FluentIconBase, Enum):
     EXIT = "exit"
     TODO = "todo"
     LIST = "list"
+    SORT = "sort"
     CLOCK = "clock"
     ALBUM = "album"
     CLEAR = "clear"
@@ -25,8 +26,11 @@ class ExtendedFluentIcon(FluentIconBase, Enum):
     CLIPBOARD = "clipboard"
     SELECT_ALL = "select_all"
     CHOOSE_PAGE = "choose_page"
+    SORT_REVERSE = "sort_reverse"
     FILE_SETTINGS = "file_settings"
     FAST_DOWNLOAD = "fast_download"
+    SINGLE_CHOICE = "single_choice"
+    APPLICATION_WINDOW = "application_window"
     DOUBLE_RIGHT_ARROWS = "double_right_arrows"
 
     def path(self, theme = Theme.AUTO):

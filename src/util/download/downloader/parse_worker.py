@@ -2,12 +2,13 @@ from PySide6.QtCore import QRunnable, QMetaObject, Qt, Q_ARG
 
 from util.download.parse.video_info import VideoInfoParser
 from util.download.parse.audio_info import AudioInfoParser
-from util.network.request import SyncNetWorkRequest
 from util.common.enum import DownloadType, MediaType
 from util.parse.episode.tree import Attribute
 from util.parse.parser.base import ParserBase
-from util.download.task.info import TaskInfo
+from util.network import SyncNetWorkRequest
 from util.common import config, Translator
+
+from ..task.info import TaskInfo
 
 from urllib.parse import urlencode
 import logging
@@ -59,8 +60,11 @@ class ParseWorker(QRunnable, ParserBase):
             if "dash" in self.info_data.keys():
                 self.task_info.Download.media_type = MediaType.DASH
 
-            elif "durl" in self.info_data.keys():
+            elif self.info_data.get("format").startswith("mp4"):
                 self.task_info.Download.media_type = MediaType.MP4
+
+            elif self.info_data.get("format").startswith("flv"):
+                self.task_info.Download.media_type = MediaType.FLV
 
     def get_video_info(self):
         params = {
@@ -126,21 +130,25 @@ class ParseWorker(QRunnable, ParserBase):
 
         if self.task_info.Download.type & DownloadType.VIDEO != 0:
             video_info_parser = VideoInfoParser(self.info_data, self.task_info)
-            video_info = video_info_parser.parse_info()
 
-            if video_info:
-                total_size += video_info["file_size"]
-                download_list["video"] = video_info
+            for entry in video_info_parser.parse_info():
+                total_size += entry.get("file_size", 0)
+                file_key = entry.get("file_key", "video")
+
+                download_list[file_key] = entry
 
         if self.task_info.Download.type & DownloadType.AUDIO != 0:
             audio_info_parser = AudioInfoParser(self.info_data, self.task_info)
-            audio_info = audio_info_parser.parse_info()
 
-            if audio_info:
-                total_size += audio_info["file_size"]
-                download_list["audio"] = audio_info
+            for entry in audio_info_parser.parse_info():
+                total_size += entry.get("file_size", 0)
+                file_key = entry.get("file_key", "audio")
+
+                download_list[file_key] = entry
 
         self.get_output_file_ext()
+
+        download_list = self.filter_download_list(download_list)
 
         return {
             "total_size": total_size,
@@ -174,5 +182,17 @@ class ParseWorker(QRunnable, ParserBase):
             self.task_info.Download.merge_video_audio = False
             self.task_info.Download.keep_original_files = False
 
-        if self.task_info.Download.merge_video_audio:
+        if self.task_info.Download.merge_video_audio or self.task_info.Download.video_parts_count > 0:
             self.task_info.File.merge_file_ext = config.get(config.video_container).value
+    
+    def filter_download_list(self, download_list: dict):
+        # 根据 task_info 中已有的 queue 过滤下载列表，去掉不需要下载的条目
+        if not self.task_info.Download.queue:
+            # 如果没有 queue 信息，说明是首次解析，直接返回完整的下载列表
+            return download_list
+        
+        # 否则根据 queue 过滤下载列表，去掉不需要下载的条目
+        filtered_download_list = {key: entry for key, entry in download_list.items() if key in self.task_info.Download.queue}
+
+        return filtered_download_list
+    

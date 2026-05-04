@@ -2,21 +2,22 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QFileDialog
 from PySide6.QtCore import Qt
 
 from qfluentwidgets import (
-    ScrollArea, SettingCardGroup, OptionsSettingCard, CustomColorSettingCard, PushSettingCard, RangeSettingCard, SwitchSettingCard,
-    ComboBoxSettingCard, PrimaryPushSettingCard, MSFluentWindow, MessageBox, FluentIcon, setTheme, setThemeColor, qconfig
+    ScrollArea, SettingCardGroup, PushSettingCard, ComboBoxSettingCard, MSFluentWindow, MessageBox, FluentIcon, 
+    setTheme, setThemeColor
 )
 
-from gui.component.setting.card import (
+from gui.component.setting import (
     PrioritySettingCard, DanmakuSettingCard, SubtitleSettingCard, CoverSettingCard, MetadataSettingCard, CDNSettingCard, ProxySettingCard,
-    FFmpegSettingCard, NumberSettingCard, DownloadFormatCard, DownloadPathSettingCard, ParseListSettingCard, ConfigFileSettingCard,
-    SpeedLimitSettingCard
+    FFmpegSettingCard, NumberSettingCard, DownloadFormatCard, DownloadPathSettingCard, ParsingSettingCard, ConfigFileSettingCard,
+    WindowBehaviorSettingCard, DownloadHandlingSettingCard, DownloadConcurrencySettingCard, PersonalizationCard,
+    CheckUpdateSettingCard
 )
 from gui.dialog.setting import (
     PriorityDialog, UserAgentDialog, ProxyDialog, CDNServerDialog, SubtitlesLanguageDialog, SubtitlesStyleDialog, DanmakuStyleDialog,
-    StartingNumberDialog, ParseListColumnDialog, SpeedLimitSettingDialog, RuleListDialog
+    StartingNumberDialog, ParseListSettingsDialog, SpeedLimitSettingDialog, RuleListDialog
 )
 
-from util.common import signal_bus, config, Translator, ExtendedFluentIcon, StyleSheet, APPConfig, isWin11
+from util.common import signal_bus, config, Translator, StyleSheet, APPConfig
 from util.common.data import video_quality_map, audio_quality_map, video_codec_map
 from util.common.enum import ToastNotificationCategory
 
@@ -41,32 +42,22 @@ class SettingInterface(ScrollArea):
         # Interface
         self.interface_group = SettingCardGroup(self.tr("Interface"), self)
 
-        self.theme_card = OptionsSettingCard(config.themeMode, FluentIcon.BRUSH, self.tr("Theme"), self.tr("Adjust the appearance of the application"), [self.tr("Light"), self.tr("Dark"), self.tr("Follow system setting")], self)
-        self.theme_color_card = CustomColorSettingCard(config.themeColor, FluentIcon.PALETTE, self.tr("Theme color"), self.tr("Adjust the theme color of the application"), self)
-        self.scaling_card = ComboBoxSettingCard(config.scaling, FluentIcon.ZOOM, self.tr("Display scaling"), self.tr("Adjust the scaling of the application interface"), ["100%", "125%", "150%", "175%", "200%", self.tr("Follow system setting")], self)
-        self.language_card = ComboBoxSettingCard(config.language, FluentIcon.LANGUAGE, self.tr("Language"), self.tr("Choose the display language of the application"), ["简体中文", "繁體中文", "English", self.tr("Follow system setting")], self)
-        self.mica_effect_card = SwitchSettingCard(FluentIcon.TRANSPARENT, self.tr("Mica effect"), self.tr("Apply Mica material that matches your desktop background"), config.mica_effect, self)
+        self.personalization_card = PersonalizationCard(self.main_window, self)
+        self.scaling_card = ComboBoxSettingCard(config.display_scaling, FluentIcon.ZOOM, self.tr("Display Scaling"), self.tr("Adjust the scaling of the application interface"), ["100%", "125%", "150%", "175%", "200%", self.tr("System default")], self)
+        self.language_card = ComboBoxSettingCard(config.language, FluentIcon.LANGUAGE, self.tr("Language"), self.tr("Choose the display language of the application"), ["简体中文", "繁體中文", "English", self.tr("System default")], self)
 
         # Behavior
         self.behavior_group = SettingCardGroup(self.tr("Behavior"), self)
 
-        self.parse_list_card = ParseListSettingCard(self)
-
-        self.stay_on_top_card = SwitchSettingCard(ExtendedFluentIcon.PIN, self.tr("Stay on top"), self.tr("Keep the window always on top of the desktop"), config.stay_on_top, self)
-        self.listen_clipboard_card = SwitchSettingCard(ExtendedFluentIcon.CLIPBOARD, self.tr("Listen to clipboard"), self.tr("Automatically start parsing when a link is copied"), config.listen_clipboard, self)
-        self.parse_history_card = SwitchSettingCard(FluentIcon.HISTORY, self.tr("Save parse history"), self.tr("Save the history of parsed links"), config.parse_history, self)
-        self.show_download_options_dialog_card = SwitchSettingCard(ExtendedFluentIcon.OPTIONS, self.tr("Show download options dialog"), self.tr("Show a dialog before starting the download to customize settings for this task"), config.show_download_options_dialog, self)
-        self.when_close_window_card = ComboBoxSettingCard(config.when_close_window, ExtendedFluentIcon.EXIT, self.tr("Close the main window"), self.tr("Choose the action when closing the main window"), [self.tr("Exit the program"), self.tr("Minimize to system tray"), self.tr("Always ask")], self)
-        self.file_conflict_resolution_card = ComboBoxSettingCard(config.file_conflict_resolution, ExtendedFluentIcon.RENAME, self.tr("File conflict resolution"), self.tr("Choose the action when a file with the same name already exists"), [self.tr("Auto rename"), self.tr("Overwrite")], self)
-
+        self.parse_list_card = ParsingSettingCard(self)
+        self.window_behavior_group = WindowBehaviorSettingCard(self)
+        self.download_interaction_card = DownloadHandlingSettingCard(self)
+        
         # Download
         self.download_group = SettingCardGroup(self.tr("Download"), self)
 
         self.download_path_card = DownloadPathSettingCard(self.main_window, save = True, parent = self)
-        self.download_thread_card = RangeSettingCard(config.download_thread, ExtendedFluentIcon.DOUBLE_RIGHT_ARROWS, self.tr("Number of threads"), self.tr("Adjust the number of threads used per task (default: 4)"), self)
-        self.download_parallel_card = RangeSettingCard(config.download_parallel, ExtendedFluentIcon.CHOOSE_PAGE, self.tr("Number of parallel downloads"), self.tr("Adjust the number of tasks downloaded simultaneously (default: 1)"), self)
-        self.show_notification_card = SwitchSettingCard(FluentIcon.RINGER, self.tr("Show notifications"), self.tr("Show notifications when downloads complete"), config.show_notification, self)
-        self.speed_limit_card = SpeedLimitSettingCard(self)
+        self.download_currency_card = DownloadConcurrencySettingCard(self)
         self.priority_setting_card = PrioritySettingCard(self)
         self.download_format_card = DownloadFormatCard(self)
 
@@ -96,31 +87,21 @@ class SettingInterface(ScrollArea):
         # Software Update
         self.update_group = SettingCardGroup(self.tr("Updates"), self)
 
-        self.check_update_card = PrimaryPushSettingCard(self.tr("Check for updates"), FluentIcon.UPDATE, self.tr("Check for updates"), self.tr("Check if a new version is available. Current version: {app_version}").format(app_version = config.app_version), self)
-        self.include_prerelease_card = SwitchSettingCard(ExtendedFluentIcon.TEST_CUBE, self.tr("Include pre-release versions"), self.tr("Include pre-release versions when checking for updates"), config.include_prerelease, self)
+        self.check_update_card = CheckUpdateSettingCard(self)
 
         # Interface
-        self.interface_group.addSettingCard(self.theme_card)
-        self.interface_group.addSettingCard(self.theme_color_card)
+        self.interface_group.addSettingCard(self.personalization_card)
         self.interface_group.addSettingCard(self.scaling_card)
         self.interface_group.addSettingCard(self.language_card)
-        self.interface_group.addSettingCard(self.mica_effect_card)
 
         # Behavior
         self.behavior_group.addSettingCard(self.parse_list_card)
-        self.behavior_group.addSettingCard(self.stay_on_top_card)
-        self.behavior_group.addSettingCard(self.listen_clipboard_card)
-        self.behavior_group.addSettingCard(self.parse_history_card)
-        self.behavior_group.addSettingCard(self.show_download_options_dialog_card)
-        self.behavior_group.addSettingCard(self.when_close_window_card)
-        self.behavior_group.addSettingCard(self.file_conflict_resolution_card)
+        self.behavior_group.addSettingCard(self.window_behavior_group)
+        self.behavior_group.addSettingCard(self.download_interaction_card)
 
         # Download
         self.download_group.addSettingCard(self.download_path_card)
-        self.download_group.addSettingCard(self.download_thread_card)
-        self.download_group.addSettingCard(self.download_parallel_card)
-        self.download_group.addSettingCard(self.show_notification_card)
-        self.download_group.addSettingCard(self.speed_limit_card)
+        self.download_group.addSettingCard(self.download_currency_card)
         self.download_group.addSettingCard(self.priority_setting_card)
         self.download_group.addSettingCard(self.download_format_card)
 
@@ -143,7 +124,6 @@ class SettingInterface(ScrollArea):
 
         # Software Update
         self.update_group.addSettingCard(self.check_update_card)
-        self.update_group.addSettingCard(self.include_prerelease_card)
 
         self.expand_layout.setSpacing(28)
         self.expand_layout.setContentsMargins(30, 10, 30, 0)
@@ -166,21 +146,19 @@ class SettingInterface(ScrollArea):
 
         self.connect_signals()
 
-        self.mica_effect_card.setEnabled(isWin11())
-
     def connect_signals(self):
         # Interface
         config.themeChanged.connect(setTheme)
-        self.theme_color_card.colorChanged.connect(lambda color: setThemeColor(color))
         config.appRestartSig.connect(self.show_restart_message)
-        self.mica_effect_card.checkedChanged.connect(signal_bus.interface.mica_effect_changed)
+        self.personalization_card.accentColorChanged.connect(setThemeColor)
+        self.personalization_card.mica_effect_switch.checkedChanged.connect(signal_bus.interface.mica_effect_changed)
 
         # Behavior
         self.parse_list_card.custom_header_btn.clicked.connect(self.on_custom_parse_list_column)
-        self.stay_on_top_card.checkedChanged.connect(self.on_change_stay_on_top)
+        self.window_behavior_group.stay_on_top_switch.checkedChanged.connect(self.on_change_stay_on_top)
 
         # Download
-        self.speed_limit_card.speed_limit_rate_btn.clicked.connect(self.on_custom_speed_limit_rate)
+        self.download_currency_card.download_speed_limit_btn.clicked.connect(self.on_custom_speed_limit_settings)
         self.priority_setting_card.video_quality_btn.clicked.connect(self.on_adjust_video_quality_priority)
         self.priority_setting_card.audio_quality_btn.clicked.connect(self.on_adjust_audio_quality_priority)
         self.priority_setting_card.video_codec_btn.clicked.connect(self.on_adjust_video_codec_priority)
@@ -203,22 +181,18 @@ class SettingInterface(ScrollArea):
         self.user_agent_card.clicked.connect(self.on_custom_user_agent)
 
         # Update
-        self.check_update_card.clicked.connect(self.on_check_update)
+        self.check_update_card.check_now_btn.clicked.connect(self.on_check_update)
 
     def on_custom_parse_list_column(self):
-        dialog = ParseListColumnDialog(self.main_window)
+        dialog = ParseListSettingsDialog(self.main_window)
         dialog.exec()
 
     def on_change_stay_on_top(self, checked: bool):
         self.main_window.setStayOnTop(checked)
 
-    def on_custom_speed_limit_rate(self):
+    def on_custom_speed_limit_settings(self):
         dialog = SpeedLimitSettingDialog(self.main_window)
-
-        if dialog.exec():
-            self.speed_limit_card.set_current_speed_limit_rate(dialog.speed_limit_rate)
-
-            config.set(config.speed_limit_rate, dialog.speed_limit_rate)
+        dialog.exec()
 
     def on_adjust_video_quality_priority(self):
         map_reversed = {v: Translator.VIDEO_QUALITY(k) for k, v in video_quality_map.items()}

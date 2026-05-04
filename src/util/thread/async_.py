@@ -2,7 +2,7 @@ from PySide6.QtCore import QThread
 
 from functools import partial
 
-from util.thread.worker_base import WorkerBase
+from .worker_base import WorkerBase
 
 thread_queue: list[tuple[QThread, WorkerBase]] = []
 
@@ -44,6 +44,10 @@ class AsyncTask:
         for thread, worker in list(thread_queue):
             if thread.isRunning():
                 thread.quit()
-                thread.wait(deadline = 1000)
+                thread.wait(1000)
+
+                if thread.isRunning():
+                    thread.terminate()
+                    thread.wait(1000)
 
                 remove_from_queue(thread, worker)

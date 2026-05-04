@@ -1,6 +1,6 @@
 from util.parse.preview import VideoInfoParser, AudioInfoParser, PreviewerInfo
 from util.common.enum import MediaType, ToastNotificationCategory
-from util.network.request import NetworkRequestWorker
+from util.network import NetworkRequestWorker
 from util.parse.episode.tree import Attribute
 from util.parse.parser.base import ParserBase
 from util.common import signal_bus, config
@@ -63,8 +63,11 @@ class Previewer(ParserBase):
             if "dash" in PreviewerInfo.info_data.keys():
                 PreviewerInfo.media_type = MediaType.DASH
 
-            elif "durl" in PreviewerInfo.info_data.keys():
+            elif PreviewerInfo.info_data.get("format").startswith("mp4"):
                 PreviewerInfo.media_type = MediaType.MP4
+
+            elif PreviewerInfo.info_data.get("format").startswith("flv"):
+                PreviewerInfo.media_type = MediaType.FLV
 
         self.parse_info()
 

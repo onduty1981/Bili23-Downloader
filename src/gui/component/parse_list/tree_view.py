@@ -1,9 +1,8 @@
-from PySide6.QtWidgets import QHeaderView
 from PySide6.QtCore import Qt, QModelIndex
 
 from qfluentwidgets import TreeView, RoundMenu, Action, FluentIcon, MessageBox, setCustomStyleSheet
 
-from gui.component.parse_list.model import ParseModel
+from .model import ParseModel
 
 from util.common import ExtendedFluentIcon, signal_bus, config
 from util.parse.episode.tree import TreeItem, Attribute
@@ -217,7 +216,6 @@ class ParseTreeView(TreeView):
 
     def update_check_state(self):
         self._model.check_state_changed.emit(QModelIndex())
-        self.update()
 
     def batch_select(self, number_list: List[int]):
         all_items = self.get_all_items()

@@ -80,7 +80,7 @@ class MediaInfoCard(ExpandGroupSettingCard):
                 case MediaType.DASH:
                     reason = self.tr("No audio track (silent video stream)")
 
-                case MediaType.MP4:
+                case MediaType.MP4 | MediaType.FLV:
                     reason = self.tr("Audio track is already embedded in the video stream")
 
                 case MediaType.UNKNOWN:
@@ -100,6 +100,9 @@ class MediaInfoCard(ExpandGroupSettingCard):
 
         if PreviewerInfo.media_type == MediaType.MP4:
             quality_label_list.append("MP4")
+
+        elif PreviewerInfo.media_type == MediaType.FLV:
+            quality_label_list.append("FLV")
 
         if not info["is_full_video"]:
             quality_label_list.append(self.tr("preview"))
@@ -174,11 +177,11 @@ class MediaOptionsCard(ExpandGroupSettingCard):
         self.merge_video_audio_group = self.addGroup("", self.tr("Merge video and audio"), self.tr("Merge separate video and audio streams into a single file"), self.merge_video_audio_switch)
         self.keep_original_files_group = self.addGroup("", self.tr("Keep original files"), self.tr("Keep the original separate stream files after merging"), self.keep_original_files_switch)
 
-        self.connect_signal()
+        self.connect_signals()
 
         self.on_load()
 
-    def connect_signal(self):
+    def connect_signals(self):
         self.download_video_stream_switch.checkedChanged.connect(self.on_change_download_stream_options)
         self.download_audio_stream_switch.checkedChanged.connect(self.on_change_download_stream_options)
         self.merge_video_audio_switch.checkedChanged.connect(self.on_change_merge_option)
@@ -249,6 +252,12 @@ class NamingConventionCard(SettingCard):
         # 如果能查询到数据，则说明是支持自定义命名规则的类型，直接显示
         if rule_list:
             for entry in rule_list:
+                name_key = entry["name"]
+                default_rule_names = Translator.DEFAULT_RULE_NAMES()
+
+                if name_key in default_rule_names:
+                    entry["name"] = Translator.DEFAULT_RULE_NAMES(name_key)
+
                 self.rule_choice.addItem(entry["name"], userData = entry["id"])
 
                 # 如果是默认规则，直接选中

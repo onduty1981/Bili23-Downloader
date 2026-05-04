@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import QVBoxLayout
 from PySide6.QtCore import QTimer
 
-from gui.component.setting.card import DanmakuSettingCard, SubtitleSettingCard, CoverSettingCard, MetadataSettingCard
+from gui.component.setting import DanmakuSettingCard, SubtitleSettingCard, CoverSettingCard, MetadataSettingCard
 from gui.component.widget import ScrollArea
 
 class AdditionalSettingsPage(ScrollArea):
@@ -32,3 +32,11 @@ class AdditionalSettingsPage(ScrollArea):
         self.subtitle_card.toggleExpand()
         self.cover_card.toggleExpand()
         self.metadata_card.toggleExpand()
+
+    def has_file_to_download(self):
+        return (
+            self.danmaku_card.download_switch.isChecked() or
+            self.subtitle_card.download_switch.isChecked() or
+            self.cover_card.download_switch.isChecked() or
+            self.metadata_card.download_switch.isChecked()
+        )

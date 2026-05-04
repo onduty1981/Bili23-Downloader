@@ -1,7 +1,7 @@
-from util.network.request import NetworkRequestWorker, SyncNetWorkRequest, RequestType, ResponseType
+from util.network import NetworkRequestWorker, SyncNetWorkRequest, RequestType, ResponseType
 from util.common import signal_bus, config, Translator
 from util.thread import AsyncTask
-from util.auth import AuthBase
+from .base import AuthBase
 
 from pathlib import Path
 
@@ -38,6 +38,8 @@ class UserManager(AuthBase):
 
                 self.get_user_avatar(data.get("face", ""))
 
+                signal_bus.emit_signal(signal_bus.parse.update_preview_info)
+
         def on_error(error_message: str):
             self.show_toast_error(Translator.ERROR_MESSAGES("USER_INFO_FAILED"), error_message)
         
@@ -50,14 +52,20 @@ class UserManager(AuthBase):
         AsyncTask.run(worker)
 
     def get_user_avatar(self, face_url: str):
-        try:
-            request = SyncNetWorkRequest(face_url, response_type = ResponseType.BYTES)
-            response = request.run()
+        if not face_url:
+            return
 
+        def on_success(response: bytes):
             signal_bus.emit_signal(signal_bus.login.update_avatar, response)
-            
-        except Exception as e:
-            self.show_toast_error(Translator.ERROR_MESSAGES("USER_AVATAR_FAILED"), str(e))
+
+        def on_error(error_message: str):
+            self.show_toast_error(Translator.ERROR_MESSAGES("USER_AVATAR_FAILED"), error_message)
+
+        request = NetworkRequestWorker(face_url, response_type = ResponseType.BYTES)
+        request.success.connect(on_success)
+        request.error.connect(on_error)
+
+        AsyncTask.run(request)
 
     def logout(self):
         def on_success(response: dict):

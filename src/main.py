@@ -54,20 +54,81 @@ qInstallMessageHandler(qt_message_handler)
 
 # --------- Imports ---------
 
-from PySide6.QtCore import Qt, QLocale, QTranslator
+from PySide6.QtCore import Qt, QLocale, QTranslator, QByteArray
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QFont
 
-from util.auth import user_manager, cookie_manager
 from qfluentwidgets import FluentTranslator
+
+from util.auth import user_manager, cookie_manager
 from util.common import config
 import res.resources_rc
 
-from gui.interface.main_window import MainWindow
+from gui.interface import MainWindow
 
 class Application(QApplication):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        self.window: MainWindow = None
+
+        self.init_socket()
+
+    def init_socket(self):
+        logger = logging.getLogger(__name__)
+        server_name = "Bili23DownloaderInstance"
+        handshake_timeout_ms = 5000
+
+        # 尝试连接到已存在的实例，如果能完成握手则退出当前实例
+        self.socket = QLocalSocket()
+        self.socket.connectToServer(server_name)
+
+        if self.socket.waitForConnected(500):
+            # 已有实例存在，先做一次握手，避免把卡死/未启动完成的实例误判成可用实例
+            self.socket.write(QByteArray(b"activate"))
+            self.socket.flush()
+
+            if self.socket.waitForBytesWritten(500) and self.socket.waitForReadyRead(handshake_timeout_ms):
+                response = self.socket.readAll().data()
+
+                if response in (b"ok", b"pong", b"activate"):
+                    logger.warning("另一个实例已在运行，已退出当前实例")
+                    sys.exit(0)
+
+            logger.warning("已有实例未能及时响应，继续启动当前实例")
+            self.socket.disconnectFromServer()
+
+        # 清理崩溃或异常退出后残留的本地服务名，避免偶发启动失败
+        QLocalServer.removeServer(server_name)
+
+        self.server = QLocalServer()
+
+        if not self.server.listen(server_name):
+            logger.error("无法启动本地服务器: %s", self.server.errorString())
+            sys.exit(1)
+
+        self.server.newConnection.connect(self.on_new_connection)
+
+    def on_new_connection(self):
+        socket = self.server.nextPendingConnection()
+
+        if socket and socket.waitForReadyRead(500):
+            data = socket.readAll().data()
+
+            if data == b"activate":
+                socket.write(QByteArray(b"ok"))
+                socket.flush()
+                socket.waitForBytesWritten(500)
+
+                # 激活已有窗口
+                if self.window:
+                    self.window._activate_window()
+
+            elif data == b"ping":
+                socket.write(QByteArray(b"pong"))
+                socket.flush()
+                socket.waitForBytesWritten(500)
 
     def setup_app(self):
         self.setAttribute(Qt.ApplicationAttribute.AA_DontCreateNativeWidgetSiblings)
@@ -90,7 +151,7 @@ class Application(QApplication):
         self.installTranslator(self.bili23_translator)
 
 def main():
-    scaling_value = config.get(config.scaling).value
+    scaling_value = config.get(config.display_scaling).value
 
     if scaling_value != "Auto":
         os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "0"
@@ -103,8 +164,7 @@ def main():
     cookie_manager.init_cookie_info()
     user_manager.init_user_info()
 
-    main_window = MainWindow()
-    main_window.show()
+    app.window = MainWindow()
 
     app.exec()
 

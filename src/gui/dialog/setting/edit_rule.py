@@ -4,7 +4,7 @@ from PySide6.QtCore import Qt, QSize
 from qfluentwidgets import SubtitleLabel, BodyLabel, LineEdit, CheckBox, PushButton, MessageBox, HyperlinkButton, RoundMenu, Action, FluentIcon
 
 from gui.component.widget import ColumnTreeWidget, DictComboBox
-from gui.component.setting.widget import InsertActionWidget
+from gui.component.setting import InsertActionWidget
 from gui.component.dialog import DialogBase
 
 from util.common.data import convention_type_map, VariableListFactory
@@ -99,11 +99,11 @@ class EditRuleDialog(DialogBase):
 
         self.adjust_widget_size()
 
-        self.connect_signal()
+        self.connect_signals()
 
         self.variable_list.header().setStretchLastSection(False)
 
-    def connect_signal(self):
+    def connect_signals(self):
         self.type_choice.currentIndexChanged.connect(self.on_type_changed)
         self.preview_btn.clicked.connect(self.on_preview)
         self.guide_btn.clicked.connect(self.on_guide)

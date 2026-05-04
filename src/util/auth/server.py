@@ -1,11 +1,13 @@
 from PySide6.QtCore import QThread
 
-from util.auth.captcha import CaptchaInfo
 from util.common import signal_bus
+
+from .captcha import CaptchaInfo
 
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from multiprocessing import Process, Queue, Event
 from urllib.parse import urlparse
+from threading import Thread
 import queue
 import json
 
@@ -151,13 +153,26 @@ class ServerManager:
     def stop(self):
         if self.running:
             self.stop_event.set()
-            
-            if self.process and self.process.is_alive():
-                self.process.terminate()
-            
-            if self.listener_thread:
-                self.listener_thread.stop()
-                
             self.running = False
+
+            process = self.process
+            listener_thread = self.listener_thread
+
+            self.process = None
+            self.req_queue = None
+            self.res_queue = None
+            self.stop_event = None
+            self.listener_thread = None
+
+            def cleanup():
+                if listener_thread:
+                    listener_thread.stop()
+
+                if process:
+                    if process.is_alive():
+                        process.terminate()
+                        process.join(timeout = 1.0)
+
+            Thread(target = cleanup, daemon = True).start()
 
 server_manager = ServerManager()

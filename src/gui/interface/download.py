@@ -2,12 +2,10 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout
 
 from qfluentwidgets import SubtitleLabel, Pivot, PopUpAniStackedWidget
 
-from gui.component.download_list.top_widget import TopStackedWidget
-from gui.component.download_list.list_view import DownloadListView
+from gui.component.download_list import TopStackedWidget, DownloadListView
 from gui.component.widget import PivotItem
 
-from util.download.task.query_worker import QueryWorker
-from util.download.task.info import TaskInfo
+from util.download import TaskInfo, QueryWorker
 from util.common import signal_bus
 from util.thread import AsyncTask
 
@@ -33,9 +31,11 @@ class DownloadInterface(QFrame):
         self.downloading_list_view.setAutoManageConcurrentTasks(True)
         self.downloading_list_view.setAutoUpdateCountBadge(True)
         self.downloading_list_view.connectUpdateDataSignal()
+        self.downloading_list_view.enableSorting("created_time")
 
         self.completed_list_view = DownloadListView(self)
         self.completed_list_view.setEmptyTextTip(self.tr("No completed downloads"))
+        self.completed_list_view.enableSorting("completed_time")
 
         top_layout = QHBoxLayout()
         top_layout.addWidget(self.pivot)
@@ -52,20 +52,22 @@ class DownloadInterface(QFrame):
 
         self.pivot.setCurrentItem("downloading")
 
-        self.connect_signal()
+        self.connect_signals()
 
-    def connect_signal(self):
+    def connect_signals(self):
         signal_bus.download.add_to_downloading_list.connect(self.downloading_list_view.addTask)
         signal_bus.download.add_to_completed_list.connect(self.completed_list_view.addTask)
+        signal_bus.download.auto_manage_concurrent_downloads.connect(self.downloading_list_view._schedule_auto_manage_concurrent_downloads)
 
         signal_bus.download.remove_from_downloading_list.connect(self.downloading_list_view.removeTask)
         signal_bus.download.remove_from_completed_list.connect(self.completed_list_view.removeTask)
 
-        signal_bus.download.start_next_task.connect(self.downloading_list_view._model.manageConcurrentDownloads)
+        signal_bus.download.sort_downloading_list.connect(self.downloading_list_view._model.sortBy)
+        signal_bus.download.sort_completed_list.connect(self.completed_list_view._model.sortBy)
 
         self.top_stacked_widget.start_all_btn.clicked.connect(self.downloading_list_view._model.batchStart)
         self.top_stacked_widget.pause_all_btn.clicked.connect(self.downloading_list_view._model.batchPause)
-        self.top_stacked_widget.delete_all_btn.clicked.connect(self.downloading_list_view._model.batch_cancel)
+        self.top_stacked_widget.delete_all_btn.clicked.connect(self.downloading_list_view.batch_cancel)
         
         self.top_stacked_widget.clear_all_btn.clicked.connect(self.completed_list_view._model.batch_cancel)
 
@@ -101,4 +103,3 @@ class DownloadInterface(QFrame):
 
     def on_query_error(self, error_message: str):
         signal_bus.toast.show_long_message.emit(self.tr("Failed to query download tasks"), error_message)
-        

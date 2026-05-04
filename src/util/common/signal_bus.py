@@ -1,8 +1,8 @@
 from PySide6.QtCore import Signal, QObject
 from PySide6.QtGui import QPixmap
 
-from util.common.enum import ToastNotificationCategory
-from util.common import config
+from .enum import ToastNotificationCategory
+from .config import config
 
 from threading import Lock
 
@@ -23,17 +23,24 @@ class SignalBus:
         query_audio_info = Signal(int, object)
 
         update_column_settings = Signal()
+        update_preview_info = Signal()
 
         parse_url = Signal(str)
+
+        search_keyword = Signal(str)
 
     class Download(QObject):
         create_task = Signal(list)
 
         add_to_downloading_list = Signal(list)
+        auto_manage_concurrent_downloads = Signal()
         add_to_completed_list = Signal(list)
 
         remove_from_downloading_list = Signal(object)
         remove_from_completed_list = Signal(object)
+
+        sort_downloading_list = Signal(str, bool)
+        sort_completed_list = Signal(str, bool)
 
         update_downloading_count = Signal(int)
         update_downloading_item = Signal(object)

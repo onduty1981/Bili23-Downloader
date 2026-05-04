@@ -17,7 +17,7 @@ else:
     ffmpeg_executable = "ffmpeg"
 
 def set_ffmpeg_environment(path: str):
-    os.environ["PATH"] = os.environ["PATH"] + os.pathsep + str(Path(path).parent)
+    os.environ["PATH"] = str(Path(path).parent) + os.pathsep + os.environ["PATH"]
 
     logger.info(f"已将 FFmpeg 路径 {path} 添加到环境变量")
 
@@ -90,5 +90,5 @@ match config.get(config.ffmpeg_source):
             else:
                 on_ffmpeg_not_found()
 
-from util.ffmpeg.command import FFmpegCommand
-from util.ffmpeg.runner import FFmpegRunner
+from .command import FFmpegCommand
+from .runner import FFmpegRunner

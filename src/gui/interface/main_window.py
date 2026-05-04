@@ -3,21 +3,21 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QIcon, QPixmap
 
 from qfluentwidgets import (
-    MSFluentWindow, SystemThemeListener, NavigationItemPosition, InfoBar, InfoBarPosition, TeachingTip,
+    MSFluentWindow, SystemThemeListener, NavigationItemPosition, TeachingTip,
     TeachingTipTailPosition, Flyout, FlyoutAnimationType, FluentIcon, InfoBadge, MessageBox,
     FlyoutAnimationManager
 )
 
-from gui.component.widget import NavigationLargeAvatarWidget, FavoriteFlyoutWidget
+from gui.component.widget import NavigationLargeAvatarWidget, FavoriteFlyoutWidget, InfoBar, InfoBarPosition
 from gui.interface import DownloadInterface, SettingInterface, ParseInterface
 from gui.dialog.misc import AboutDialog, ExitDialog, TermsOfUseDialog
 from gui.component import SystemTrayIcon, ProfileCard
-from gui.dialog.update import UpdateDialog
-from gui.dialog.login import LoginDialog
+from gui.dialog import LoginDialog, UpdateDialog
 
 from util.common import signal_bus, config, Directory, ExtendedFluentIcon
 from util.common.enum import ToastNotificationCategory, WhenClose
 from util.auth import user_manager
+from util.thread import AsyncTask
 from util.misc import Updater
 
 class MainWindow(MSFluentWindow):
@@ -25,25 +25,25 @@ class MainWindow(MSFluentWindow):
         super().__init__()
 
         self.resize(950, 600)
+        self.setMinimumSize(950, 600)
         self.setWindowTitle("Bili23 Downloader")
         self.setWindowIcon(QIcon(":/bili23/icon/app.svg"))
         self.setObjectName("MainWindow")
 
         self.current_route_key = "ParseInterface"
         self.flyout_initialized = False
+        self.initialized = False
 
         self.init_UI()
 
         self.init_utils()
 
-        self.center_on_screen()
+        self.center_on_screen(not config.get(config.silent_start))
 
     def init_UI(self):
         self.parse_interface = ParseInterface(self)
         self.download_interface = DownloadInterface(self)
         self.setting_interface = SettingInterface(self)
-
-        self.navigationInterface
 
         self.parse_btn = self.addSubInterface(self.parse_interface, FluentIcon.SEARCH, self.tr("Parser"), position = NavigationItemPosition.TOP)
 
@@ -122,7 +122,7 @@ class MainWindow(MSFluentWindow):
 
         self.setMicaEffectEnabled(config.get(config.mica_effect))
 
-        self.updater = Updater()
+        self.updater = Updater(self)
 
         signal_bus.update.check.connect(self.updater.request_update)
 
@@ -142,8 +142,20 @@ class MainWindow(MSFluentWindow):
             e.ignore()
             return
         
-        self.theme_listener.terminate()
-        self.theme_listener.deleteLater()
+        # 隐藏窗口，给用户反馈正在关闭的状态，避免长时间无响应的感觉
+        self.hide()
+        
+        AsyncTask.safe_quit()
+
+        if self.theme_listener.isRunning():
+            self.theme_listener.quit()
+            self.theme_listener.wait(1000)
+
+            if self.theme_listener.isRunning():
+                self.theme_listener.terminate()
+                self.theme_listener.wait(1000)
+                
+            self.theme_listener.deleteLater()
 
         super().closeEvent(e)
 
@@ -189,7 +201,6 @@ class MainWindow(MSFluentWindow):
 
             if dialog.exec():
                 user_manager.get_user_info()
-            
         else:
             # 已登录，点击头像显示用户信息
             Flyout.make(
@@ -247,7 +258,8 @@ class MainWindow(MSFluentWindow):
             isClosable = True,
             duration = -1,
             position = InfoBarPosition.BOTTOM_RIGHT,
-            parent = self
+            parent = self,
+            contentMaxHeight = 200
         )
 
     def show_teaching_tip(self):
@@ -276,13 +288,15 @@ class MainWindow(MSFluentWindow):
         dialog = UpdateDialog(info, self)
         dialog.exec()
 
-    def center_on_screen(self):
+    def center_on_screen(self, show = True):
         desktop = QApplication.screens()[0].availableGeometry()
         w, h = desktop.width(), desktop.height()
-        self.move(w//2 - self.width()//2, h//2 - self.height()//2)
-        self.show()
 
-        QApplication.processEvents()
+        self.move(w // 2 - self.width() // 2, h // 2 - self.height() // 2)
+
+        if show:
+            self.initialized = True
+            self.show()
 
     def update_download_btn_badge_info(self, count: int):
         if self.download_info_badge.isHidden():
@@ -357,3 +371,16 @@ class MainWindow(MSFluentWindow):
 
     def reset_route_key(self):
         self.navigationInterface.setCurrentItem(self.current_route_key)
+
+    def _activate_window(self):
+        if not self.initialized:
+            self.resize(950, 600)
+            self.center_on_screen(show = True)
+
+        if self.isMinimized():
+            self.showNormal()
+        else:
+            self.show()
+
+        self.raise_()
+        self.activateWindow()

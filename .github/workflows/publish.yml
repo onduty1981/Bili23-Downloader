@@ -1,7 +1,6 @@
 name: Publish release
 
 on:
-  workflow_dispatch:
   push:
     # branches:
     #   - dev
@@ -14,27 +13,43 @@ jobs:
     outputs:
       VERSION: ${{ steps.set-version.outputs.VERSION }}
       VERSION_NAME: ${{ steps.set-version.outputs.VERSION_NAME }}
+      IS_PRERELEASE: ${{ steps.set-version.outputs.IS_PRERELEASE }}
     steps:
       - name: Set version
         id: set-version
         run: |
           echo "VERSION=$(echo ${GITHUB_REF#refs/tags/v} | sed 's/-rc.*//')" >> $GITHUB_OUTPUT
           echo "VERSION_NAME=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          if echo "${GITHUB_REF#refs/tags/v}" | grep -q -- '-rc'; then
+            echo "IS_PRERELEASE=true" >> $GITHUB_OUTPUT
+          else
+            echo "IS_PRERELEASE=false" >> $GITHUB_OUTPUT
+          fi
 
-          # echo "VERSION=2.00.1" >> $GITHUB_OUTPUT
-          # echo "VERSION_NAME=2.00.1" >> $GITHUB_OUTPUT
+          # echo "VERSION=2.00.2" >> $GITHUB_OUTPUT
+          # echo "VERSION_NAME=2.00.2" >> $GITHUB_OUTPUT
 
   windows-build:
     needs: get-version
     env:
       VERSION: ${{ needs.get-version.outputs.VERSION }}
       VERSION_NAME: ${{ needs.get-version.outputs.VERSION_NAME }}
+      IS_PRERELEASE: ${{ needs.get-version.outputs.IS_PRERELEASE }}
     outputs:
       VERSION: ${{ env.VERSION }}
       VERSION_NAME: ${{ env.VERSION_NAME }}
+      IS_PRERELEASE: ${{ env.IS_PRERELEASE }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
+
+      - name: Update Inno Setup script with version
+        run: |
+          $setupPath = "assets\setup.iss"
+          $content = Get-Content $setupPath -Raw
+          $content = $content -replace '(?m)^#define\s+MyAppVersion\s+".*?"', "#define MyAppVersion `"$env:VERSION`""
+          $content = $content -replace '(?m)^#define\s+MyAppVersionName\s+".*?"', "#define MyAppVersionName `"$env:VERSION_NAME`""
+          [System.IO.File]::WriteAllText((Resolve-Path $setupPath), $content, (New-Object System.Text.UTF8Encoding($false)))
 
       - name: Setup Python
         uses: actions/setup-python@v6
@@ -46,6 +61,14 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install nuitka==4.0.8
+
+      - name: Compile source code with nuitka
+        run: |
+          python -m nuitka --module src\main.py --include-package=main --show-progress --mingw64 --output-dir=./dist/dist-main --assume-yes-for-downloads
+          python -m nuitka --module src\gui --include-package=gui --show-progress --mingw64 --output-dir=./dist/dist-gui
+          python -m nuitka --module src\util --include-package=util --show-progress --mingw64 --output-dir=./dist/dist-util
+          python -m nuitka --module src\res --include-package=res --show-progress --mingw64 --output-dir=./dist/dist-res
 
       - name: Install Inno Setup and Chinese language pack
         run: |
@@ -66,18 +89,21 @@ jobs:
       - name: Prepare Windows 10/11 runtime
         run: |
           # 下载 Python 静态运行时环境
-          Invoke-WebRequest -Uri "https://github.com/ScottSloan/Python-Static/releases/download/v0.0.2/windows_x64_runtime.zip" -OutFile windows_x64_runtime.zip
+          Invoke-WebRequest -Uri "https://github.com/ScottSloan/Python-Static/releases/download/v0.0.6/windows_x64_runtime.zip" -OutFile windows_x64_runtime.zip
           
           Expand-Archive windows_x64_runtime.zip -DestinationPath Bili23-Downloader
 
           New-Item -ItemType Directory -Force -Path Bili23-Downloader\script
-          Copy-Item -Path src\* -Destination Bili23-Downloader\script\ -Recurse -Force
 
-      - name: Precompile source code to byte code
-        run: |
-          # 预编译 Python 源代码为字节码，提升冷启动速度
-          python -m compileall Bili23-Downloader\script\
           python -m compileall Bili23-Downloader\site-packages\
+
+      - name: Copy compiled modules to script folder
+        run: |
+          # 将编译后的模块复制到 script 文件夹
+          Copy-Item -Path dist\dist-main\main.cp312-win_amd64.pyd -Destination Bili23-Downloader\script\main.cp312-win_amd64.pyd -Force
+          Copy-Item -Path dist\dist-gui\gui.cp312-win_amd64.pyd -Destination Bili23-Downloader\script\gui.cp312-win_amd64.pyd -Force
+          Copy-Item -Path dist\dist-util\util.cp312-win_amd64.pyd -Destination Bili23-Downloader\script\util.cp312-win_amd64.pyd -Force
+          Copy-Item -Path dist\dist-res\res.cp312-win_amd64.pyd -Destination Bili23-Downloader\script\res.cp312-win_amd64.pyd -Force
 
       - name: Package Windows version
         run: |
@@ -110,18 +136,21 @@ jobs:
       - name: Prepare Windows 7 runtime
         run: |
           # 下载 Python 静态运行时环境
-          Invoke-WebRequest -Uri "https://github.com/ScottSloan/Python-Static/releases/download/v0.0.2/windows_x64_runtime_for_win7.zip" -OutFile windows_x64_runtime_for_win7.zip
+          Invoke-WebRequest -Uri "https://github.com/ScottSloan/Python-Static/releases/download/v0.0.6/windows_x64_runtime_for_win7.zip" -OutFile windows_x64_runtime_for_win7.zip
           
           Expand-Archive windows_x64_runtime_for_win7.zip -DestinationPath Bili23-Downloader
 
           New-Item -ItemType Directory -Force -Path Bili23-Downloader\script
-          Copy-Item -Path src\* -Destination Bili23-Downloader\script\ -Recurse -Force
 
-      - name: Precompile source code to byte code for Windows 7
-        run: |
-          # 预编译 Python 源代码为字节码，提升冷启动速度
-          python -m compileall Bili23-Downloader\script\
           python -m compileall Bili23-Downloader\site-packages\
+
+      - name: Copy compiled modules to script folder for Windows 7
+        run: |
+          # 将编译后的模块复制到 script 文件夹
+          Copy-Item -Path dist\dist-main\main.cp312-win_amd64.pyd -Destination Bili23-Downloader\script\main.cp312-win_amd64.pyd -Force
+          Copy-Item -Path dist\dist-gui\gui.cp312-win_amd64.pyd -Destination Bili23-Downloader\script\gui.cp312-win_amd64.pyd -Force
+          Copy-Item -Path dist\dist-util\util.cp312-win_amd64.pyd -Destination Bili23-Downloader\script\util.cp312-win_amd64.pyd -Force
+          Copy-Item -Path dist\dist-res\res.cp312-win_amd64.pyd -Destination Bili23-Downloader\script\res.cp312-win_amd64.pyd -Force
 
       - name: Package Windows 7 version
         run: |
@@ -150,44 +179,95 @@ jobs:
     outputs:
       VERSION: ${{ env.VERSION }}
       VERSION_NAME: ${{ env.VERSION_NAME }}
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            os: ubuntu-latest
+            arch_suffix: x86_64
+
+          - arch: arm64
+            os: ubuntu-24.04-arm
+            arch_suffix: aarch64
+
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: 3.12
-          architecture: 'x64'
-
-      - name: Install Python dependencies
+      - name: Prepare Ubuntu chroot environment
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          export chroot_distro=${{ matrix.arch == 'amd64' && 'focal' || 'noble' }}
+          export source_url=${{ matrix.arch == 'amd64' && 'http://archive.ubuntu.com/ubuntu/' || 'http://ports.ubuntu.com/ubuntu-ports/' }}
+
+          sudo apt update
+          sudo apt install -y debootstrap
+
+          sudo debootstrap --arch=${{ matrix.arch }} ${chroot_distro} ~/ubuntu-rootfs ${source_url}
+
+          sudo mkdir -p ~/ubuntu-rootfs/workspace
+
+          # chroot 挂载
+          sudo mount --bind /dev ~/ubuntu-rootfs/dev
+          sudo mount --bind /proc ~/ubuntu-rootfs/proc
+          sudo mount --bind /sys ~/ubuntu-rootfs/sys
+          sudo mount --bind /etc/resolv.conf ~/ubuntu-rootfs/etc/resolv.conf
+          sudo mount --bind "$GITHUB_WORKSPACE" ~/ubuntu-rootfs/workspace
+
+          # 进入 chroot 环境，安装必要的依赖
+          sudo chroot ~/ubuntu-rootfs /bin/bash -lc '
+          cd /workspace
+
+          apt update
+          apt install -y build-essential wget ca-certificates
+
+          wget https://github.com/ScottSloan/Python-Static/releases/download/v0.0.1-deb/python3.12-linux-${{ matrix.arch }}.deb
+
+          dpkg -i python3.12-linux-${{ matrix.arch }}.deb
+
+          /opt/python-static/bin/python3.12 -m ensurepip
+          /opt/python-static/bin/python3.12 -m pip install --upgrade pip
+
+          /opt/python-static/bin/python3.12 -m pip install nuitka==4.0.8
+          /opt/python-static/bin/python3.12 -m pip install PySide6==6.9.3
+          /opt/python-static/bin/python3.12 -m pip install protobuf httpx qrcode Pillow PySide6-Fluent-Widgets
+
+          /opt/python-static/bin/python3.12 -m nuitka --module src/main.py --include-package=main --show-progress --output-dir=./dist/dist-main --assume-yes-for-downloads
+          /opt/python-static/bin/python3.12 -m nuitka --module src/gui --include-package=gui --show-progress --output-dir=./dist/dist-gui
+          /opt/python-static/bin/python3.12 -m nuitka --module src/util --include-package=util --show-progress --output-dir=./dist/dist-util
+          /opt/python-static/bin/python3.12 -m nuitka --module src/res --include-package=res --show-progress --output-dir=./dist/dist-res
+          '
+
+          # 退出 chroot 环境，卸载挂载点
+          sudo umount ~/ubuntu-rootfs/dev
+          sudo umount ~/ubuntu-rootfs/proc
+          sudo umount ~/ubuntu-rootfs/sys
+          sudo umount ~/ubuntu-rootfs/etc/resolv.conf
+          sudo umount ~/ubuntu-rootfs/workspace
 
       - name: Prepare Linux runtime
         run: |
           # 下载 Python 静态运行时环境
-          wget https://github.com/ScottSloan/Python-Static/releases/download/v0.0.2/linux_amd64_runtime.zip
+          wget https://github.com/ScottSloan/Python-Static/releases/download/v0.0.6/linux_${{ matrix.arch }}_runtime.zip
 
-          unzip linux_amd64_runtime.zip -d Bili23-Downloader
+          unzip linux_${{ matrix.arch }}_runtime.zip -d Bili23-Downloader
 
           chmod +x Bili23-Downloader/bili23-downloader
           chmod +x Bili23-Downloader/bundle/ffmpeg
-          chmod +x Bili23-Downloader/runtime/python3.12
 
-          cp -r src Bili23-Downloader/script
+          mkdir -p Bili23-Downloader/script
 
-      - name: Precompile source code to byte code
+      - name: Copy compiled modules to script folder
         run: |
-          # 预编译 Python 源代码为字节码，提升冷启动速度
-          python -m compileall Bili23-Downloader/script/
-          python -m compileall Bili23-Downloader/runtime/site-packages/
+          # 将编译后的模块复制到 script 文件夹
+          cp dist/dist-main/main.cpython-312-${{ matrix.arch_suffix }}-linux-gnu.so Bili23-Downloader/script/main.cpython-312-${{ matrix.arch_suffix }}-linux-gnu.so
+          cp dist/dist-gui/gui.cpython-312-${{ matrix.arch_suffix }}-linux-gnu.so Bili23-Downloader/script/gui.cpython-312-${{ matrix.arch_suffix }}-linux-gnu.so
+          cp dist/dist-util/util.cpython-312-${{ matrix.arch_suffix }}-linux-gnu.so Bili23-Downloader/script/util.cpython-312-${{ matrix.arch_suffix }}-linux-gnu.so
+          cp dist/dist-res/res.cpython-312-${{ matrix.arch_suffix }}-linux-gnu.so Bili23-Downloader/script/res.cpython-312-${{ matrix.arch_suffix }}-linux-gnu.so
 
       - name: Package Linux version
         run: |
           # 便携版：直接打包为 tar.gz
-          tar -czvf Bili23-Downloader_${{ env.VERSION_NAME }}_linux_amd64_portable.tar.gz Bili23-Downloader
+          tar -czvf Bili23-Downloader_${{ env.VERSION_NAME }}_linux_${{ matrix.arch }}_portable.tar.gz Bili23-Downloader
 
           # deb 包：需要创建 deb 包结构
           mkdir -p buildroot/DEBIAN
@@ -199,18 +279,36 @@ jobs:
           cp -r Bili23-Downloader buildroot/opt/
           cp src/res/icon/app.svg buildroot/usr/share/icons/hicolor/scalable/apps/bili23-downloader.svg
 
+          export GLIBC_VERSION=${{ matrix.arch == 'amd64' && '2.31' || '2.39' }}
+
           # control 文件
-          echo "Package: bili23-downloader" > buildroot/DEBIAN/control
-          echo "Version: ${{ env.VERSION_NAME }}" >> buildroot/DEBIAN/control
-          echo "Architecture: amd64" >> buildroot/DEBIAN/control
-          echo "Section: utils" >> buildroot/DEBIAN/control
-          echo "Priority: optional" >> buildroot/DEBIAN/control
-          echo "Maintainer: Scott Sloan <world1019@sina.com>" >> buildroot/DEBIAN/control
-          echo "Description: A cross-platform video downloader for Bilibili" >> buildroot/DEBIAN/control
-          echo "Depends: libc6 (>= 2.27)" >> buildroot/DEBIAN/control
-          echo "Homepage: https://bili23.scott-sloan.cn" >> buildroot/DEBIAN/control
-          echo "License: GPL-3.0" >> buildroot/DEBIAN/control
-          echo "Installed-Size: $(du -s Bili23-Downloader | cut -f1)" >> buildroot/DEBIAN/control
+          cat << EOF > buildroot/DEBIAN/control
+          Package: bili23-downloader
+          Version: ${{ env.VERSION_NAME }}
+          Architecture: ${{ matrix.arch }}
+          Section: utils
+          Priority: optional
+          Maintainer: Scott Sloan <world1019@sina.com>
+          Description: A cross-platform video downloader for Bilibili
+          Depends: libc6 (>= ${GLIBC_VERSION}), libxcb-cursor0
+          Homepage: https://bili23.scott-sloan.cn
+          License: GPL-3.0
+          Installed-Size: $(du -s Bili23-Downloader | cut -f1)
+          EOF
+
+          # preinst 文件
+          cat << 'EOF' > buildroot/DEBIAN/preinst
+          #!/bin/bash
+          # 清空旧版本可能残留的文件
+          rm -rf /opt/Bili23-Downloader
+          EOF
+
+          # postrm 文件
+          cat << 'EOF' > buildroot/DEBIAN/postrm
+          #!/bin/bash
+          # 卸载后删除残留文件
+          rm -rf /opt/Bili23-Downloader
+          EOF
 
           # desktop 文件
           cat << 'EOF' > buildroot/usr/share/applications/bili23-downloader.desktop
@@ -232,16 +330,18 @@ jobs:
           EOF
 
           chmod +x buildroot/usr/local/bin/bili23-downloader
+          chmod +x buildroot/DEBIAN/preinst
+          chmod +x buildroot/DEBIAN/postrm
 
-          dpkg-deb --build buildroot Bili23-Downloader_${{ env.VERSION_NAME }}_linux_amd64.deb
+          dpkg-deb --build buildroot Bili23-Downloader_${{ env.VERSION_NAME }}_linux_${{ matrix.arch }}.deb
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v6
         with:
-          name: linux-artifacts
+          name: linux-${{ matrix.arch }}-artifacts
           path: |
-            Bili23-Downloader_${{ env.VERSION_NAME }}_linux_amd64_portable.tar.gz
-            Bili23-Downloader_${{ env.VERSION_NAME }}_linux_amd64.deb
+            Bili23-Downloader_${{ env.VERSION_NAME }}_linux_${{ matrix.arch }}_portable.tar.gz
+            Bili23-Downloader_${{ env.VERSION_NAME }}_linux_${{ matrix.arch }}.deb
 
   macos-build:
     needs: get-version
@@ -256,8 +356,12 @@ jobs:
         include:
           - arch: x86_64
             os: macos-15-intel
+            python_arch: x64
+            
           - arch: aarch64
             os: macos-latest
+            python_arch: arm64
+
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -270,31 +374,44 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: 3.12
-          architecture: ${{ matrix.arch == 'aarch64' && 'arm64' || 'x64' }}
+          architecture: ${{ matrix.python_arch }}
 
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install nuitka==4.0.8
+
+      - name: Compile source code with nuitka
+        run: |
+          export MACOSX_DEPLOYMENT_TARGET=12.0
+
+          python -m nuitka --module src/main.py --include-package=main --show-progress --output-dir=./dist/dist-main --assume-yes-for-downloads
+          python -m nuitka --module src/gui --include-package=gui --show-progress --output-dir=./dist/dist-gui
+          python -m nuitka --module src/util --include-package=util --show-progress --output-dir=./dist/dist-util
+          python -m nuitka --module src/res --include-package=res --show-progress --output-dir=./dist/dist-res
 
       - name: Prepare macOS runtime
         run: |
           # 下载 Python 静态运行时环境
-          wget https://github.com/ScottSloan/Python-Static/releases/download/v0.0.2/macos_${{ matrix.arch }}_runtime.zip
+          wget https://github.com/ScottSloan/Python-Static/releases/download/v0.0.6/macos_${{ matrix.arch }}_runtime.zip
 
           unzip macos_${{ matrix.arch }}_runtime.zip -d Bili23-Downloader
 
           chmod +x Bili23-Downloader/bili23-downloader
           chmod +x Bili23-Downloader/bundle/ffmpeg
-          chmod +x Bili23-Downloader/runtime/python3.12
 
-          cp -r src Bili23-Downloader/script
+          mkdir -p Bili23-Downloader/script
 
-      - name: Precompile source code to byte code
-        run: |
-          # 预编译 Python 源代码为字节码，提升冷启动速度
-          python -m compileall Bili23-Downloader/script/
           python -m compileall Bili23-Downloader/runtime/site-packages/
+
+      - name: Copy compiled modules to script folder
+        run: |
+          # 将编译后的模块复制到 script 文件夹
+          cp dist/dist-main/main.cpython-312-darwin.so Bili23-Downloader/script/main.cpython-312-darwin.so
+          cp dist/dist-gui/gui.cpython-312-darwin.so Bili23-Downloader/script/gui.cpython-312-darwin.so
+          cp dist/dist-util/util.cpython-312-darwin.so Bili23-Downloader/script/util.cpython-312-darwin.so
+          cp dist/dist-res/res.cpython-312-darwin.so Bili23-Downloader/script/res.cpython-312-darwin.so
 
       - name: Package macOS version
         run: |
@@ -325,7 +442,7 @@ jobs:
             <key>CFBundlePackageType</key>
             <string>APPL</string>
             <key>LSMinimumSystemVersion</key>
-            <string>10.15</string>
+            <string>12.0</string>
             <key>NSHighResolutionCapable</key>
             <true/>
             <key>LSUIElement</key>
@@ -367,6 +484,7 @@ jobs:
     needs: [windows-build, linux-build, macos-build]
     env:
       VERSION_NAME: ${{ needs.windows-build.outputs.VERSION_NAME }}
+      IS_PRERELEASE: ${{ needs.windows-build.outputs.IS_PRERELEASE }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -386,6 +504,19 @@ jobs:
         run: |
           ls -la release-artifacts
 
+      - name: Update CHANGELOG.md
+        run: |
+          # 在原有的 CHANGELOG.md 基础上，添加安全提示
+          echo "" >> CHANGELOG.md
+          echo "> [!CAUTION]" >> CHANGELOG.md
+          echo "> 强烈建议仅通过官方 GitHub 链接（即本页面下方的链接）下载本软件。 从第三方网站、网盘论坛或他人私下分享渠道获取的安装包，极有可能被二次篡改或植入病毒/木马。对于因下载、运行非官方渠道安装包所导致的任何设备损坏、隐私泄露或财产损失，开发者概不负责。" >> CHANGELOG.md
+
+          echo "" >> CHANGELOG.md
+
+          echo "> [!TIP]" >> CHANGELOG.md
+          echo "> Windows 7 用户请下载 win7 专用版（带有 for_win7 字样）" >> CHANGELOG.md
+          echo "> 其他问题请参考 [常见问题(FAQ)](https://bili23.scott-sloan.cn/doc/faq.html)" >> CHANGELOG.md
+
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         env:
@@ -393,9 +524,9 @@ jobs:
         with:
           name: v${{ env.VERSION_NAME }}
           body_path: CHANGELOG.md
-          make_latest: true
+          make_latest: ${{ env.IS_PRERELEASE != 'true' }}
           draft: false
-          prerelease: false
+          prerelease: ${{ env.IS_PRERELEASE == 'true' }}
           generate_release_notes: false
           discussion_category_name: announcements
           files: |

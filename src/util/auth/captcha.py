@@ -1,8 +1,9 @@
-from util.network.request import NetworkRequestWorker
+from util.network import NetworkRequestWorker
 from util.common import signal_bus
 from util.thread import AsyncTask
-from util.auth import AuthBase
 from util.misc import WebPage
+
+from .base import AuthBase
 
 class CaptchaInfo:
     token = ""
@@ -19,9 +20,22 @@ class Captcha(AuthBase):
         super().__init__()
 
         self.server_running = False
+        self._cleaned_up = False
+
+    def cleanup(self):
+        self._cleaned_up = True
+
+        if not self.server_running:
+            return
+
+        signal_bus.login.stop_server.emit()
+        self.server_running = False
 
     def init_geetest(self):
         def on_success(response: dict):
+            if self._cleaned_up:
+                return
+
             self.check_response(response)
 
             CaptchaInfo.token = response["data"]["token"]
