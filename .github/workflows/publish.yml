@@ -2,8 +2,8 @@ name: Publish release
 
 on:
   push:
-    # branches:
-    #   - dev
+    branches:
+      - dev
     tags:
       - "v*"
 
@@ -89,7 +89,7 @@ jobs:
       - name: Prepare Windows 10/11 runtime
         run: |
           # 下载 Python 静态运行时环境
-          Invoke-WebRequest -Uri "https://github.com/ScottSloan/Python-Static/releases/download/v0.0.6/windows_x64_runtime.zip" -OutFile windows_x64_runtime.zip
+          Invoke-WebRequest -Uri "https://github.com/ScottSloan/Python-Static/releases/download/v0.0.7/windows_x64_runtime.zip" -OutFile windows_x64_runtime.zip
           
           Expand-Archive windows_x64_runtime.zip -DestinationPath Bili23-Downloader
 
@@ -136,7 +136,7 @@ jobs:
       - name: Prepare Windows 7 runtime
         run: |
           # 下载 Python 静态运行时环境
-          Invoke-WebRequest -Uri "https://github.com/ScottSloan/Python-Static/releases/download/v0.0.6/windows_x64_runtime_for_win7.zip" -OutFile windows_x64_runtime_for_win7.zip
+          Invoke-WebRequest -Uri "https://github.com/ScottSloan/Python-Static/releases/download/v0.0.7/windows_x64_runtime_for_win7.zip" -OutFile windows_x64_runtime_for_win7.zip
           
           Expand-Archive windows_x64_runtime_for_win7.zip -DestinationPath Bili23-Downloader
 
@@ -247,7 +247,7 @@ jobs:
       - name: Prepare Linux runtime
         run: |
           # 下载 Python 静态运行时环境
-          wget https://github.com/ScottSloan/Python-Static/releases/download/v0.0.6/linux_${{ matrix.arch }}_runtime.zip
+          wget https://github.com/ScottSloan/Python-Static/releases/download/v0.0.7/linux_${{ matrix.arch }}_runtime.zip
 
           unzip linux_${{ matrix.arch }}_runtime.zip -d Bili23-Downloader
 
@@ -394,7 +394,7 @@ jobs:
       - name: Prepare macOS runtime
         run: |
           # 下载 Python 静态运行时环境
-          wget https://github.com/ScottSloan/Python-Static/releases/download/v0.0.6/macos_${{ matrix.arch }}_runtime.zip
+          wget https://github.com/ScottSloan/Python-Static/releases/download/v0.0.7/macos_${{ matrix.arch }}_runtime.zip
 
           unzip macos_${{ matrix.arch }}_runtime.zip -d Bili23-Downloader
 
@@ -480,54 +480,54 @@ jobs:
           name: macos-${{ matrix.arch }}-artifact
           path: Bili23-Downloader_${{ env.VERSION_NAME }}_macos_${{ matrix.arch }}.dmg
   
-  publish:
-    needs: [windows-build, linux-build, macos-build]
-    env:
-      VERSION_NAME: ${{ needs.windows-build.outputs.VERSION_NAME }}
-      IS_PRERELEASE: ${{ needs.windows-build.outputs.IS_PRERELEASE }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      discussions: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
+  # publish:
+  #   needs: [windows-build, linux-build, macos-build]
+  #   env:
+  #     VERSION_NAME: ${{ needs.windows-build.outputs.VERSION_NAME }}
+  #     IS_PRERELEASE: ${{ needs.windows-build.outputs.IS_PRERELEASE }}
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: write
+  #     discussions: write
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v6
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v8
-        with:
-          pattern: '*-artifact*'
-          path: release-artifacts
-          merge-multiple: true
+  #     - name: Download all artifacts
+  #       uses: actions/download-artifact@v8
+  #       with:
+  #         pattern: '*-artifact*'
+  #         path: release-artifacts
+  #         merge-multiple: true
 
-      - name: List downloaded artifacts
-        run: |
-          ls -la release-artifacts
+  #     - name: List downloaded artifacts
+  #       run: |
+  #         ls -la release-artifacts
 
-      - name: Update CHANGELOG.md
-        run: |
-          # 在原有的 CHANGELOG.md 基础上，添加安全提示
-          echo "" >> CHANGELOG.md
-          echo "> [!CAUTION]" >> CHANGELOG.md
-          echo "> 强烈建议仅通过官方 GitHub 链接（即本页面下方的链接）下载本软件。 从第三方网站、网盘论坛或他人私下分享渠道获取的安装包，极有可能被二次篡改或植入病毒/木马。对于因下载、运行非官方渠道安装包所导致的任何设备损坏、隐私泄露或财产损失，开发者概不负责。" >> CHANGELOG.md
+  #     - name: Update CHANGELOG.md
+  #       run: |
+  #         # 在原有的 CHANGELOG.md 基础上，添加安全提示
+  #         echo "" >> CHANGELOG.md
+  #         echo "> [!CAUTION]" >> CHANGELOG.md
+  #         echo "> 强烈建议仅通过官方 GitHub 链接（即本页面下方的链接）下载本软件。 从第三方网站、网盘论坛或他人私下分享渠道获取的安装包，极有可能被二次篡改或植入病毒/木马。对于因下载、运行非官方渠道安装包所导致的任何设备损坏、隐私泄露或财产损失，开发者概不负责。" >> CHANGELOG.md
 
-          echo "" >> CHANGELOG.md
+  #         echo "" >> CHANGELOG.md
 
-          echo "> [!TIP]" >> CHANGELOG.md
-          echo "> Windows 7 用户请下载 win7 专用版（带有 for_win7 字样）" >> CHANGELOG.md
-          echo "> 其他问题请参考 [常见问题(FAQ)](https://bili23.scott-sloan.cn/doc/faq.html)" >> CHANGELOG.md
+  #         echo "> [!TIP]" >> CHANGELOG.md
+  #         echo "> Windows 7 用户请下载 win7 专用版（带有 for_win7 字样）" >> CHANGELOG.md
+  #         echo "> 其他问题请参考 [常见问题(FAQ)](https://bili23.scott-sloan.cn/doc/faq.html)" >> CHANGELOG.md
 
-      # - name: Upload to Release
-      #   uses: softprops/action-gh-release@v2
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #   with:
-      #     name: v${{ env.VERSION_NAME }}
-      #     body_path: CHANGELOG.md
-      #     make_latest: ${{ env.IS_PRERELEASE != 'true' }}
-      #     draft: false
-      #     prerelease: ${{ env.IS_PRERELEASE == 'true' }}
-      #     generate_release_notes: false
-      #     discussion_category_name: announcements
-      #     files: |
-      #       release-artifacts/*
+  #     - name: Upload to Release
+  #       uses: softprops/action-gh-release@v2
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #       with:
+  #         name: v${{ env.VERSION_NAME }}
+  #         body_path: CHANGELOG.md
+  #         make_latest: ${{ env.IS_PRERELEASE != 'true' }}
+  #         draft: false
+  #         prerelease: ${{ env.IS_PRERELEASE == 'true' }}
+  #         generate_release_notes: false
+  #         discussion_category_name: announcements
+  #         files: |
+  #           release-artifacts/*
