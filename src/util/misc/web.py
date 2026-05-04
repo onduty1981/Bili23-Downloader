@@ -1,13 +1,18 @@
 from PySide6.QtCore import QStandardPaths, QFile, QTextStream
 
-from functools import wraps
 from pathlib import Path
 import webbrowser
+import logging
 
-def ensure_file_exists(func):
-    # 检查文件是否已经释放到临时目录
-    @wraps(func)
-    def wrapper(cls, file_name: str, *args, **kwargs):
+logger = logging.getLogger(__name__)
+
+class WebPage:
+    """
+    调用系统默认浏览器打开本地 HTML 文件的工具类
+    """
+
+    @staticmethod
+    def ensure_file_exists(file_name: str):
         temp_dir = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.TempLocation)
 
         file_path = Path(temp_dir, file_name)
@@ -20,22 +25,22 @@ def ensure_file_exists(func):
                 stream = QTextStream(file)
                 content = stream.readAll()
 
-                with open(file_path, "w", encoding="utf-8") as f:
+                with open(file_path, "w", encoding = "utf-8") as f:
                     f.write(content)
 
-        return func(cls, file_name, str(file_path), *args, **kwargs)
+                logger.info("已将资源文件 %s 写入临时目录: %s", file_name, file_path)
+
+        return file_path.as_uri()
     
-    return wrapper
-
-class WebPage:
-    """
-    调用系统默认浏览器打开本地 HTML 文件的工具类
-    """
-
-    @classmethod
-    @ensure_file_exists
-    def open(cls, file_name: str, file_path: str = None):
+    @staticmethod
+    def open(file_name: str):
         """
         调用系统默认浏览器打开对应的 HTML 文件
         """
-        webbrowser.open(file_path)
+        file_path = WebPage.ensure_file_exists(file_name)
+
+        if file_path:
+            result = webbrowser.open(file_path)
+
+            if not result:
+                logger.error("无法打开文件: %s", file_path)

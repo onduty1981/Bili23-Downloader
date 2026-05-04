@@ -1,13 +1,10 @@
-from PySide6.QtCore import QThread
-
 from util.common import signal_bus
 
 from .captcha import CaptchaInfo
 
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from multiprocessing import Process, Queue, Event
 from urllib.parse import urlparse
-from threading import Thread
+from threading import Event, Thread
 import queue
 import json
 
@@ -84,9 +81,9 @@ def run_server(host, port, req_queue, res_queue, stop_event):
         
     server.server_close()
 
-class QueueListenerThread(QThread):
+class QueueListenerThread(Thread):
     def __init__(self, req_queue, res_queue):
-        super().__init__()
+        super().__init__(daemon = True)
         self.req_queue = req_queue
         self.res_queue = res_queue
         self.running = True
@@ -113,14 +110,26 @@ class QueueListenerThread(QThread):
 
     def stop(self):
         self.running = False
-        self.wait()
+        self.join(timeout = 1.0)
+
+class ServerThread(Thread):
+    def __init__(self, host, port, req_queue, res_queue, stop_event):
+        super().__init__(daemon = True)
+        self.host = host
+        self.port = port
+        self.req_queue = req_queue
+        self.res_queue = res_queue
+        self.stop_event = stop_event
+
+    def run(self):
+        run_server(self.host, self.port, self.req_queue, self.res_queue, self.stop_event)
 
 class ServerManager:
     def __init__(self, host="127.0.0.1", port=2333):
         self.host = host
         self.port = port
         
-        self.process = None
+        self.server_thread = None
         self.req_queue = None
         self.res_queue = None
         self.stop_event = None
@@ -132,21 +141,23 @@ class ServerManager:
 
     def start(self):
         if not self.running:
-            self.req_queue = Queue()
-            self.res_queue = Queue()
+            self.req_queue = queue.Queue()
+            self.res_queue = queue.Queue()
             self.stop_event = Event()
 
             # 启动监听线程
             self.listener_thread = QueueListenerThread(self.req_queue, self.res_queue)
             self.listener_thread.start()
 
-            # 启动控制台子进程
-            self.process = Process(
-                target=run_server, 
-                args=(self.host, self.port, self.req_queue, self.res_queue, self.stop_event), 
-                daemon=True
+            # 启动后台服务线程
+            self.server_thread = ServerThread(
+                self.host,
+                self.port,
+                self.req_queue,
+                self.res_queue,
+                self.stop_event,
             )
-            self.process.start()
+            self.server_thread.start()
             
             self.running = True
 
@@ -155,10 +166,10 @@ class ServerManager:
             self.stop_event.set()
             self.running = False
 
-            process = self.process
+            server_thread = self.server_thread
             listener_thread = self.listener_thread
 
-            self.process = None
+            self.server_thread = None
             self.req_queue = None
             self.res_queue = None
             self.stop_event = None
@@ -168,10 +179,8 @@ class ServerManager:
                 if listener_thread:
                     listener_thread.stop()
 
-                if process:
-                    if process.is_alive():
-                        process.terminate()
-                        process.join(timeout = 1.0)
+                if server_thread:
+                    server_thread.join(timeout = 1.0)
 
             Thread(target = cleanup, daemon = True).start()
 
